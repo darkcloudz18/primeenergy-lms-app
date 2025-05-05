@@ -7,7 +7,7 @@ export default function Footer() {
         {/* Logo and Tagline */}
         <div>
           <Link href="/" className="text-2xl font-bold text-[#03BF63]">
-            Primeenergy Solar LMS
+            Prime Energy Solar LMS
           </Link>
           <p className="mt-2 text-sm text-gray-500">
             Empowering your learning journey.
@@ -55,7 +55,7 @@ export default function Footer() {
       </div>
 
       <div className="text-center py-4 text-sm border-t border-gray-200">
-        &copy; {new Date().getFullYear()} Primeenergy Solar LMS. All rights
+        &copy; {new Date().getFullYear()} Prime Energy Solar LMS. All rights
         reserved.
       </div>
     </footer>

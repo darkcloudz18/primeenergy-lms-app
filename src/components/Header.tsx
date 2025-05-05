@@ -1,9 +1,12 @@
+// src/components/Header.tsx
 "use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import Image from "next/image";
 import clsx from "clsx";
+import { useSession, signIn, signOut } from "next-auth/react";
 
 const navItems = [
   { label: "Home", href: "/" },
@@ -15,6 +18,7 @@ const navItems = [
 export default function Header() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const { data: session } = useSession();
 
   return (
     <header className="bg-white shadow-md sticky top-0 z-50">
@@ -28,6 +32,50 @@ export default function Header() {
             height={40}
           />
         </Link>
+
+        {/* Desktop Nav */}
+        <nav className="hidden lg:flex items-center space-x-6 font-medium">
+          {navItems.map(({ label, href }) => (
+            <Link
+              key={href}
+              href={href}
+              className={clsx(
+                "text-gray-700 hover:text-[#03BF63] hover:underline underline-offset-8 decoration-2",
+                pathname === href && "text-[#03BF63] underline"
+              )}
+            >
+              {label}
+            </Link>
+          ))}
+
+          {/* Auth buttons */}
+          {!session ? (
+            <>
+              <button
+                onClick={() => signIn("credentials")}
+                className="text-gray-700 hover:text-[#03BF63]"
+              >
+                Sign In
+              </button>
+              <Link
+                href="/auth/register"
+                className="text-gray-700 hover:text-[#03BF63]"
+              >
+                Register
+              </Link>
+            </>
+          ) : (
+            <div className="flex items-center space-x-4">
+              <span className="text-gray-700">Hi, {session.user?.email}</span>
+              <button
+                onClick={() => signOut({ callbackUrl: "/" })}
+                className="text-red-600 hover:text-red-800"
+              >
+                Sign Out
+              </button>
+            </div>
+          )}
+        </nav>
 
         {/* Mobile Hamburger */}
         <div className="lg:hidden">
@@ -61,23 +109,6 @@ export default function Header() {
             </svg>
           </button>
         </div>
-
-        {/* Desktop Nav */}
-        <nav className="hidden lg:flex space-x-6 font-medium">
-          {navItems.map(({ label, href }) => (
-            <Link
-              key={href}
-              href={href}
-              className={clsx(
-                "text-gray-700 hover:text-[#03BF63] hover:underline underline-offset-8 decoration-2",
-                pathname === href &&
-                  "text-[#03BF63] underline underline-offset-8"
-              )}
-            >
-              {label}
-            </Link>
-          ))}
-        </nav>
       </div>
 
       {/* Mobile Nav */}
@@ -95,6 +126,36 @@ export default function Header() {
               {label}
             </Link>
           ))}
+
+          {/* Mobile auth links */}
+          {!session ? (
+            <>
+              <button
+                onClick={() => signIn("credentials")}
+                className="block text-gray-700 hover:text-[#03BF63]"
+              >
+                Sign In
+              </button>
+              <Link
+                href="/auth/register"
+                className="block text-gray-700 hover:text-[#03BF63]"
+              >
+                Register
+              </Link>
+            </>
+          ) : (
+            <>
+              <span className="block text-gray-700">
+                Hi, {session.user?.email}
+              </span>
+              <button
+                onClick={() => signOut({ callbackUrl: "/" })}
+                className="block text-red-600 hover:text-red-800"
+              >
+                Sign Out
+              </button>
+            </>
+          )}
         </div>
       )}
     </header>
