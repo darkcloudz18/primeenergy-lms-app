@@ -6,10 +6,12 @@ export default function DemoLessonPage() {
     <div className="max-w-5xl mx-auto py-12 flex gap-8">
       {/* Sidebar */}
       <aside className="w-64 space-y-4">
-        <h2 className="font-semibold">Module 1: EMI Basics</h2>
+        <h2 className="font-semibold text-black">Module 1: EMI Basics</h2>
         <ul className="space-y-2">
           <li className="text-green-600">✔ Understanding Radiated Emissions</li>
-          <li className="font-bold">Best Practices for Reducing Emissions</li>
+          <li className="font-bold text-gray-500">
+            Best Practices for Reducing Emissions
+          </li>
           <li>Case Studies</li>
           {/* … */}
           <li>
@@ -22,7 +24,7 @@ export default function DemoLessonPage() {
 
       {/* Lesson content */}
       <section className="flex-1 space-y-6">
-        <h3 className="text-2xl font-semibold">
+        <h3 className="text-2xl font-semibold text-black">
           Best Practices for Reducing Emissions
         </h3>
         <p className="text-gray-700">
