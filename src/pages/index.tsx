@@ -52,7 +52,7 @@ export default function Home() {
                     Short description about this course.
                   </p>
                   <Link
-                    href="/courses"
+                    href="/demo"
                     className="text-[#03BF63] font-medium hover:underline"
                   >
                     Learn More →
