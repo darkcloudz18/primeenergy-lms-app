@@ -1,36 +1,50 @@
 // src/components/Header.tsx
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import clsx from "clsx";
-import { useSession, signIn, signOut } from "next-auth/react";
-
-const navItems = [
-  { label: "Home", href: "/" },
-  { label: "About Us", href: "/about" },
-  { label: "Courses", href: "/courses" },
-  { label: "My Dashboard", href: "/dashboard" },
-];
+import {
+  useSessionContext,
+  useSupabaseClient,
+} from "@supabase/auth-helpers-react";
 
 export default function Header() {
+  const { session } = useSessionContext();
+  const supabase = useSupabaseClient();
+  const router = useRouter();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
-  const { data: session } = useSession();
+
+  // 1) Compute dashboard URL based on role
+  const dashboardHref = session
+    ? session.user.user_metadata.role === "admin"
+      ? "/admin"
+      : session.user.user_metadata.role === "tutor"
+      ? "/dashboard/tutor"
+      : "/dashboard"
+    : "/auth/login";
+
+  const navItems = [
+    { label: "Home", href: "/" },
+    { label: "About Us", href: "/about" },
+    { label: "Courses", href: "/courses" },
+  ];
+
+  // 2) Sign-out handler
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/");
+  };
 
   return (
     <header className="bg-white shadow-md sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
         {/* Logo */}
         <Link href="/" className="flex items-center space-x-2">
-          <Image
-            src="/logo.png"
-            alt="Prime University Logo"
-            width={160}
-            height={40}
-          />
+          <Image src="/logo.png" alt="Logo" width={160} height={40} />
         </Link>
 
         {/* Desktop Nav */}
@@ -40,35 +54,46 @@ export default function Header() {
               key={href}
               href={href}
               className={clsx(
-                "text-gray-700 hover:text-[#03BF63] hover:underline underline-offset-8 decoration-2",
-                pathname === href && "text-[#03BF63] underline"
+                "text-gray-700 hover:text-green-600 hover:underline",
+                pathname === href && "text-green-600 underline"
               )}
             >
               {label}
             </Link>
           ))}
 
-          {/* Auth buttons */}
+          {/* Dynamic My Dashboard link */}
+          <Link
+            href={dashboardHref}
+            className={clsx(
+              "text-gray-700 hover:text-green-600 hover:underline",
+              pathname === dashboardHref && "text-green-600 underline"
+            )}
+          >
+            My Dashboard
+          </Link>
+
+          {/* Auth Buttons */}
           {!session ? (
             <>
               <button
-                onClick={() => signIn("credentials")}
-                className="text-gray-700 hover:text-[#03BF63]"
+                onClick={() => router.push("/auth/login")}
+                className="text-gray-700 hover:text-green-600"
               >
                 Sign In
               </button>
               <Link
                 href="/auth/register"
-                className="text-gray-700 hover:text-[#03BF63]"
+                className="text-gray-700 hover:text-green-600"
               >
                 Register
               </Link>
             </>
           ) : (
             <div className="flex items-center space-x-4">
-              <span className="text-gray-700">Hi, {session.user?.email}</span>
+              <span className="text-gray-700">Hi, {session.user.email}</span>
               <button
-                onClick={() => signOut({ callbackUrl: "/" })}
+                onClick={handleSignOut}
                 className="text-red-600 hover:text-red-800"
               >
                 Sign Out
@@ -81,32 +106,10 @@ export default function Header() {
         <div className="lg:hidden">
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="text-gray-700 focus:outline-none"
             aria-label="Toggle Menu"
+            className="text-gray-700"
           >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              {isOpen ? (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              ) : (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              )}
-            </svg>
+            {/* ...svg icons... */}
           </button>
         </div>
       </div>
@@ -119,26 +122,35 @@ export default function Header() {
               key={href}
               href={href}
               className={clsx(
-                "block text-gray-700 hover:text-[#03BF63] hover:underline underline-offset-4 decoration-2",
-                pathname === href && "text-[#03BF63] underline"
+                "block text-gray-700 hover:text-green-600 hover:underline",
+                pathname === href && "text-green-600 underline"
               )}
             >
               {label}
             </Link>
           ))}
 
-          {/* Mobile auth links */}
+          <Link
+            href={dashboardHref}
+            className={clsx(
+              "block text-gray-700 hover:text-green-600 hover:underline",
+              pathname === dashboardHref && "text-green-600 underline"
+            )}
+          >
+            My Dashboard
+          </Link>
+
           {!session ? (
             <>
               <button
-                onClick={() => signIn("credentials")}
-                className="block text-gray-700 hover:text-[#03BF63]"
+                onClick={() => router.push("/auth/login")}
+                className="block text-gray-700 hover:text-green-600"
               >
                 Sign In
               </button>
               <Link
                 href="/auth/register"
-                className="block text-gray-700 hover:text-[#03BF63]"
+                className="block text-gray-700 hover:text-green-600"
               >
                 Register
               </Link>
@@ -146,10 +158,10 @@ export default function Header() {
           ) : (
             <>
               <span className="block text-gray-700">
-                Hi, {session.user?.email}
+                Hi, {session.user.email}
               </span>
               <button
-                onClick={() => signOut({ callbackUrl: "/" })}
+                onClick={handleSignOut}
                 className="block text-red-600 hover:text-red-800"
               >
                 Sign Out

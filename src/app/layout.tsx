@@ -1,27 +1,28 @@
 // src/app/layout.tsx
-import "@/styles/globals.css";
-import "@/lib/fontawesome";
-import Providers from "@/components/Providers";
+"use client";
+
+import React, { useState } from "react";
+import { SessionContextProvider } from "@supabase/auth-helpers-react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-
-export const metadata = {
-  title: "Prime University LMS",
-};
+import "@/styles/globals.css";
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // replace createBrowserSupabaseClient() with createClientComponentClient()
+  const [supabaseClient] = useState(() => createClientComponentClient());
   return (
     <html lang="en">
       <body className="flex flex-col min-h-screen bg-gray-100">
-        <Providers>
+        <SessionContextProvider supabaseClient={supabaseClient}>
           <Header />
           <main className="flex-1">{children}</main>
           <Footer />
-        </Providers>
+        </SessionContextProvider>
       </body>
     </html>
   );
