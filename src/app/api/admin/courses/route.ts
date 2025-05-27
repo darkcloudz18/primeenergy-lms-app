@@ -1,15 +1,54 @@
-// src/app/api/admin/courses/route.ts
+// src/app/api/admin/courses/[id]/route.ts
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { createServerClient } from "@/lib/supabase-server";
 
-export async function POST(req: Request) {
-  const { title } = await req.json();
-  const { data, error } = await supabaseAdmin!
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params;
+  const supabase = createServerClient();
+  const { data, error } = await supabase
     .from("courses")
-    .insert({ title })
-    .select()
+    .select("*")
+    .eq("id", id)
     .single();
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ course: data });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 404 });
+  }
+  return NextResponse.json(data);
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params;
+  const updates = await request.json();
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("courses")
+    .update(updates)
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json(data);
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params;
+  const supabase = createServerClient();
+  const { error } = await supabase.from("courses").delete().eq("id", id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ success: true });
 }
