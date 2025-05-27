@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 
 export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ id: string }> } // ← params is now a Promise
-) {
-  const { id } = await params; // ← await it
+  request: Request,
+  { params }: { params: Promise<{ id: string }> } // ← Promise<{ id: string }>
+): Promise<NextResponse> {
+  const { id } = await params; // ← await the params
   const supabase = createServerClient();
 
   const { data, error } = await supabase
@@ -22,8 +22,8 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: Promise<{ id: string }> } // ← same change here
-) {
+  { params }: { params: Promise<{ id: string }> } // ← same here
+): Promise<NextResponse> {
   const { id } = await params;
   const updates = await request.json();
   const supabase = createServerClient();
