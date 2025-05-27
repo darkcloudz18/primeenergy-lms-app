@@ -1,8 +1,7 @@
 // src/components/AdminDashboard.tsx
 "use client";
 
-"use client";
-
+import Link from "next/link";
 import { useState } from "react";
 import type { Course, UserProfile } from "@/lib/types";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -19,27 +18,6 @@ export default function AdminDashboard({
 }: Props) {
   const [courses, setCourses] = useState<Course[]>(initialCourses);
   const [users, setUsers] = useState<UserProfile[]>(initialUsers);
-
-  // generic helper: body can be any JSON
-  async function postJSON<T>(url: string, body: unknown): Promise<T> {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    return res.json();
-  }
-
-  // Create Course
-  async function addCourse() {
-    const title = prompt("Course title?");
-    if (!title) return;
-    const { course } = await postJSON<{ course: Course }>(
-      "/api/admin/courses",
-      { title }
-    );
-    setCourses((c) => [course, ...c]);
-  }
 
   // Delete Course
   async function deleteCourse(id: string) {
@@ -63,14 +41,18 @@ export default function AdminDashboard({
     <div className="space-y-12 p-8">
       {/* Courses */}
       <section>
-        <h2 className="text-2xl font-bold mb-4">Courses</h2>
-        <button
-          onClick={addCourse}
-          className="mb-4 inline-flex items-center px-3 py-1 bg-green-600 text-white rounded"
-        >
-          <FontAwesomeIcon icon={faPlus} className="mr-2" />
-          New Course
-        </button>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold">Courses</h2>
+          {/* ← Instead of prompt(), link to your course+lesson form page */}
+          <Link
+            href="/admin/create-course"
+            className="inline-flex items-center px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+          >
+            <FontAwesomeIcon icon={faPlus} className="mr-2" />
+            New Course
+          </Link>
+        </div>
+
         <table className="w-full table-auto bg-white shadow rounded overflow-hidden">
           <thead className="bg-gray-100">
             <tr>

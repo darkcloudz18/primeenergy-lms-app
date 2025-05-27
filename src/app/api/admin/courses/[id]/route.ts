@@ -1,6 +1,6 @@
 // src/app/api/admin/courses/[id]/route.ts
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseClient";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function DELETE(
   _req: Request,

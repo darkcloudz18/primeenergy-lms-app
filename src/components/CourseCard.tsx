@@ -24,7 +24,7 @@ export default function CourseCard({
       <div className="relative h-48 w-full">
         <Image
           src={imageUrl || "/placeholder.png"}
-          alt={title}
+          alt={title || "Course cover image"}
           fill
           className="object-cover"
         />
