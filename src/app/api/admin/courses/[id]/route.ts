@@ -1,11 +1,19 @@
-// src/app/api/admin/courses/[id]/route.ts
-import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+// app/api/admin/courses/[id]/route.ts
+import { NextResponse, NextRequest } from "next/server";
+import { createServerClient } from "@/lib/supabase-server";
 
 export async function DELETE(
-  _req: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: { id: string } }
 ) {
-  await supabaseAdmin!.from("courses").delete().eq("id", params.id);
-  return NextResponse.json({ ok: true });
+  const { id } = context.params;
+  const supabase = createServerClient();
+
+  const { error } = await supabase.from("courses").delete().eq("id", id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
 }
