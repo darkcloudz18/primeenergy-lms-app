@@ -3,7 +3,7 @@ import { createServerClient } from "@/lib/supabase-server";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> } // ← Promise<{ id: string }>
+  { params }: { params: Promise<{ id: string }> } // ← Promise<{ id: strin }>
 ): Promise<NextResponse> {
   const { id } = await params; // ← await the params
   const supabase = createServerClient();
