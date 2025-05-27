@@ -2,10 +2,42 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 
-export async function DELETE(
-  request: Request, // ← use the Web Request type
-  { params }: { params: { id: string } } // ← keep the shape, but don’t import/annotate with NextRequest
-) {
+type Params = { params: { id: string } };
+
+export async function GET(request: Request, { params }: Params) {
+  const { id } = params;
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("courses")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 404 });
+  }
+  return NextResponse.json(data);
+}
+
+export async function PUT(request: Request, { params }: Params) {
+  const { id } = params;
+  const updates = await request.json();
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("courses")
+    .update(updates)
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json(data);
+}
+
+export async function DELETE(request: Request, { params }: Params) {
   const { id } = params;
   const supabase = createServerClient();
 
