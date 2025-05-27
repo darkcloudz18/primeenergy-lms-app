@@ -2,9 +2,10 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 
-type Params = { params: { id: string } };
-
-export async function GET(request: Request, { params }: Params) {
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   const { id } = params;
   const supabase = createServerClient();
 
@@ -20,7 +21,10 @@ export async function GET(request: Request, { params }: Params) {
   return NextResponse.json(data);
 }
 
-export async function PUT(request: Request, { params }: Params) {
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   const { id } = params;
   const updates = await request.json();
   const supabase = createServerClient();
@@ -37,7 +41,10 @@ export async function PUT(request: Request, { params }: Params) {
   return NextResponse.json(data);
 }
 
-export async function DELETE(request: Request, { params }: Params) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   const { id } = params;
   const supabase = createServerClient();
 
