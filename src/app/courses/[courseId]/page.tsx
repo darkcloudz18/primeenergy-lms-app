@@ -1,43 +1,49 @@
 // src/app/courses/[courseId]/page.tsx
-import type { Course, Lesson } from "@/lib/types";
+import type { Lesson } from "@/lib/types";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import CourseLessonPage from "@/components/CourseLessonPage";
+import ClientCoursePage from "./components/ClientCoursePage";
 
 interface PageProps {
-  params: Promise<{ courseId: string }>;
+  params: { courseId: string };
 }
 
 export default async function CoursePage({ params }: PageProps) {
-  // 1) Wait for the params promise to resolve:
-  const { courseId } = await params;
+  const { courseId } = params;
 
-  // 2) Fetch the course
+  // ▶️ Course metadata + extra fields
   const { data: course, error: courseError } = await supabaseAdmin
     .from("courses")
-    .select("*")
+    .select("id, title, description, image_url, category, level, tag")
     .eq("id", courseId)
     .single();
+  if (courseError || !course) throw new Error("Course not found");
 
-  if (courseError || !course) {
-    // you might want to redirect to a 404 here instead
-    throw new Error("Course not found");
-  }
-
-  // 3) Fetch its lessons, ordered by your `ordering` column
+  // ▶️ Lessons list
   const { data: lessonsRaw, error: lessonsError } = await supabaseAdmin
     .from("lessons")
-    .select("*")
+    .select("id, title")
     .eq("course_id", courseId)
     .order("ordering", { ascending: true });
+  if (lessonsError) throw new Error(lessonsError.message);
+  const lessons = lessonsRaw as Lesson[];
 
-  if (lessonsError) {
-    throw new Error(lessonsError.message);
-  }
+  // ▶️ Enrollment count
+  const { count: enrolledCount } = await supabaseAdmin
+    .from("enrollments")
+    .select("*", { head: true, count: "exact" })
+    .eq("course_id", courseId);
 
-  const lessons = (lessonsRaw ?? []) as Lesson[];
-
-  // 4) Delegate to your client component
   return (
-    <CourseLessonPage course={course as Course} initialLessons={lessons} />
+    <ClientCoursePage
+      courseId={course.id}
+      title={course.title}
+      description={course.description ?? undefined}
+      imageUrl={course.image_url ?? undefined}
+      category={course.category ?? undefined}
+      level={course.level ?? undefined}
+      tag={course.tag ?? undefined}
+      enrolledCount={enrolledCount ?? 0}
+      lessons={lessons}
+    />
   );
 }

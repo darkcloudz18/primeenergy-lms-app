@@ -1,23 +1,20 @@
-// src/app/api/admin/quizzes/[quizId]/questions/route.ts
+// src/app/api/admin/quizzes/[quizId]/questions/[questionId]/options/route.ts
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 
 export async function POST(
   request: Request,
-  { params }: { params: { quizId: string } }
+  { params }: { params: { quizId: string; questionId: string } }
 ) {
-  const { quizId } = params;
+  const { questionId } = params;
   const payload = await request.json();
-  // payload should include:
-  // { type: 'multiple_choice'|'true_false'|'short_answer',
-  //   prompt_html: string,
-  //   ordering: number }
+  // payload: { text: string, is_correct: boolean, ordering: number }
 
   const supabase = createServerClient();
   const { data, error } = await supabase
-    .from("questions")
-    .insert({ ...payload, quiz_id: quizId })
-    .select()
+    .from("options")
+    .insert({ ...payload, question_id: questionId })
+    .select() // return the new row
     .single();
 
   if (error) {
