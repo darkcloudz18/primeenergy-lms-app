@@ -1,8 +1,10 @@
 // src/app/auth/callback/route.ts
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 
-export async function GET() {
-  // we’re not doing anything with the auth parameters here —
-  // the Supabase client in the browser already persisted the session for us.
-  return NextResponse.redirect("/");
+export async function GET(request: NextRequest) {
+  // … your existing logic (e.g. exchanging a code with your provider) …
+
+  // Instead of `NextResponse.redirect('/')`, do:
+  const baseUrl = new URL(request.url).origin;
+  return NextResponse.redirect(new URL("/", baseUrl));
 }
