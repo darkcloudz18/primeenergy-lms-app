@@ -1,16 +1,14 @@
-// src/app/api/courses/[courseId]/route.ts
-
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { Course, Lesson } from "@/lib/types";
 
 export async function GET(
-  _request: Request,
-  context: { params: { courseId: string } }
+  _req: NextRequest,
+  { params }: { params: { courseId: string } }
 ) {
-  const { courseId } = context.params;
+  const { courseId } = params;
 
-  // 1) Fetch the course row
+  // 1) Fetch course row
   const { data: course, error: courseError } = await supabaseAdmin
     .from("courses")
     .select(
@@ -24,7 +22,7 @@ export async function GET(
   }
   const typedCourse = course as Course;
 
-  // 2) Fetch all lessons belonging to that course
+  // 2) Fetch lessons for that course
   const { data: lessonsRaw, error: lessonError } = await supabaseAdmin
     .from("lessons")
     .select("id, title, content, type, ordering, image_url, created_at")
@@ -36,9 +34,6 @@ export async function GET(
   }
   const lessons = (lessonsRaw as Lesson[]) || [];
 
-  // 3) Return both course + lessons
-  return NextResponse.json({
-    course: typedCourse,
-    lessons,
-  });
+  // 3) Return both course and its lessons
+  return NextResponse.json({ course: typedCourse, lessons });
 }
