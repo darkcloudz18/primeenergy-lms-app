@@ -5,9 +5,9 @@ import type { Course, Lesson } from "@/lib/types";
 
 export async function GET(
   _req: NextRequest,
-  context: { params: { courseId: string } }
+  { params }: { params: { courseId: string } }
 ) {
-  const { courseId } = context.params;
+  const { courseId } = params;
 
   // 1) Fetch the course row
   const { data: course, error: courseError } = await supabaseAdmin
