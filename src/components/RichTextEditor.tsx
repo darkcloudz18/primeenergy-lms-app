@@ -1,16 +1,18 @@
 // src/components/RichTextEditor.tsx
 "use client";
 
-import { ChangeEvent } from "react";
+import React, { useState, ChangeEvent } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
-import Link from "@tiptap/extension-link";
-import ImageExtension from "@tiptap/extension-image";
 import TextAlign from "@tiptap/extension-text-align";
-import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
-// @ts-expect-error lowlight doesn’t ship its own types
-import { lowlight } from "lowlight";
+import ImageExtension from "@tiptap/extension-image";
+import {
+  PhotoIcon,
+  BoldIcon,
+  ItalicIcon,
+  ListBulletIcon,
+  HashtagIcon,
+} from "@heroicons/react/24/outline";
 import { uploadImage } from "@/lib/upload";
 
 interface RichTextEditorProps {
@@ -22,84 +24,106 @@ export default function RichTextEditor({
   value,
   onChange,
 }: RichTextEditorProps) {
+  const [uploading, setUploading] = useState(false);
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Underline,
-      Link.configure({ openOnClick: false }),
-      ImageExtension,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      CodeBlockLowlight.configure({ lowlight }),
+      ImageExtension,
     ],
     content: value,
-    onUpdate: ({ editor }) => {
+    onUpdate({ editor }) {
       onChange(editor.getHTML());
     },
   });
 
-  // narrow away the null case
-  if (!editor) {
-    return <div>Loading editor…</div>;
-  }
-
-  async function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
+  const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !editor) return;
+
+    setUploading(true);
     try {
       const url = await uploadImage(file);
       editor.chain().focus().setImage({ src: url }).run();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      alert("Image upload failed: " + message);
+    } catch (err) {
+      console.error(err);
+      alert("Image upload failed");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
     }
-  }
+  };
+
+  if (!editor) return null;
 
   return (
-    <div className="border rounded mb-2">
-      <div className="p-2 flex items-center space-x-2 bg-gray-50">
+    <div className="border rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-green-500">
+      {/* Toolbar */}
+      <div className="bg-gray-50 p-2 flex space-x-2">
+        {/* Bold */}
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleBold().run()}
-          className="font-bold"
+          className={editor.isActive("bold") ? "text-green-600" : ""}
+          aria-label="Bold"
         >
-          B
+          <BoldIcon className="w-5 h-5" />
         </button>
+        {/* Italic */}
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          className="italic"
+          className={editor.isActive("italic") ? "text-green-600" : ""}
+          aria-label="Italic"
         >
-          I
+          <ItalicIcon className="w-5 h-5" />
         </button>
+        {/* Bullet List */}
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleBulletList().run()}
+          className={editor.isActive("bulletList") ? "text-green-600" : ""}
+          aria-label="Bullet List"
         >
-          • List
+          <ListBulletIcon className="w-5 h-5" />
         </button>
+        {/* Numbered List */}
         <button
           type="button"
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          className={editor.isActive("orderedList") ? "text-green-600" : ""}
+          aria-label="Numbered List"
         >
-          1. List
+          <HashtagIcon className="w-5 h-5" />
         </button>
-        <button
-          type="button"
-          onClick={() => editor.chain().focus().setTextAlign("center").run()}
-        >
-          Center
-        </button>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleImageUpload}
-          className="ml-auto"
+        {/* Image Upload */}
+        <label className="cursor-pointer">
+          <PhotoIcon className="w-5 h-5 inline-block" />
+          <input
+            type="file"
+            accept="image/*"
+            disabled={uploading}
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+        </label>
+      </div>
+
+      {/* Editor area: big and ready to type */}
+      <div
+        onClick={() => editor.chain().focus().run()}
+        className="
+          cursor-text
+          min-h-[240px]
+          p-4
+          focus-within:ring-2 focus-within:ring-blue-400
+        "
+      >
+        <EditorContent
+          editor={editor}
+          className="min-h-[200px] p-4 prose prose-sm prose-green focus:outline-none focus:ring-0"
         />
       </div>
-      <EditorContent
-        editor={editor}
-        className="min-h-[100px] p-2 prose prose-sm prose-green"
-      />
     </div>
   );
 }

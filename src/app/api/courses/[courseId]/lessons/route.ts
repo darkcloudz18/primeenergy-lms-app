@@ -1,52 +1,61 @@
-// File: src/app/api/courses/[courseId]/lessons/route.ts
+// src/app/api/courses/[courseId]/lessons/route.ts
 
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { NextResponse } from "next/server";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import type { Lesson } from "@/lib/types";
 
-export const revalidate = 0;
+// NOTE: We assume your `src/lib/types.ts` exports:
+//    export type Lesson = {
+//      id: string;
+//      title: string;
+//      content: string;
+//      type: "article" | "video" | "image";
+//      ordering: number;
+//      image_url: string | null;
+//      created_at: string;
+//    };
 
-export async function POST(
-  req: Request,
+export async function GET(
+  _req: Request,
   { params }: { params: { courseId: string } }
 ) {
-  const supabase = createServerComponentClient({ cookies });
-  const { courseId } = params;
+  const courseId = params.courseId;
 
-  // parse the incoming JSON
-  const { title, content, type } = (await req.json()) as {
-    title: string;
-    content: string;
-    type: "article" | "video" | "image";
-  };
-
-  // find the current max order for that course
-  const { data: last } = await supabase
-    .from("lessons")
-    .select("order")
-    .eq("course_id", courseId)
-    .order("order", { ascending: false })
-    .limit(1)
-    .single();
-
-  const nextOrder = (last?.order ?? 0) + 1;
-
-  // insert the new lesson
-  const { data, error } = await supabase
-    .from("lessons")
-    .insert({
-      course_id: courseId,
+  // 1) Fetch all modules for this course, *including* their nested lessons in one call:
+  const { data: modulesRaw, error: modulesError } = await supabaseAdmin
+    .from("modules")
+    .select(
+      `
+      id,
       title,
-      content,
-      type,
-      ordering: nextOrder,
-    })
-    .select()
-    .single();
+      ordering,
+      lessons (
+        id,
+        title,
+        content,
+        type,
+        ordering,
+        image_url,
+        created_at
+      )
+    `
+    )
+    .eq("course_id", courseId)
+    .order("ordering", { ascending: true })
+    .order("lessons.ordering", { ascending: true });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (modulesError) {
+    return NextResponse.json({ error: modulesError.message }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  // 2) Flatten out all the lessons from every module:
+  let allLessons: Lesson[] = [];
+  // modulesRaw has type: Array<{ id: string; title: string; ordering: number; lessons: Lesson[] }>
+  modulesRaw.forEach((m: { lessons?: Lesson[] }) => {
+    if (m.lessons && Array.isArray(m.lessons)) {
+      allLessons = allLessons.concat(m.lessons);
+    }
+  });
+
+  return NextResponse.json({ lessons: allLessons });
 }

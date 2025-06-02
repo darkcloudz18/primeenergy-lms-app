@@ -1,3 +1,6 @@
+/* 1) Import Poppins weights 300, 400, 500 from Google Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -18,6 +21,7 @@
   /* All page text */
   body {
     @apply text-gray-800;
+    @apply font-poppins font-light;
   }
 
   /* All headings h1–h6 */
@@ -27,6 +31,20 @@
   h4,
   h5,
   h6 {
+    @apply font-poppins font-medium;
     @apply text-black;
   }
+  button {
+    @apply font-poppins font-normal;
+  }
+  input,
+  textarea,
+  label {
+    @apply font-poppins font-light;
+  }
+}
+
+.ProseMirror:focus {
+  outline: none;
+  box-shadow: none;
 }
