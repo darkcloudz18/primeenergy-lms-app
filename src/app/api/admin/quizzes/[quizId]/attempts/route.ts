@@ -4,21 +4,21 @@ import { createServerClient } from "@/lib/supabase-server";
 
 export async function POST(
   request: Request,
-  context: { params: { quizId: string } }
+  { params }: { params: { quizId: string } }
 ) {
-  // ① Pull quizId directly out of context.params (no Promise wrapper)
-  const { quizId } = context.params;
+  // ✅ TS/Next now knows “there may be more fields” in that second argument,
+  //    but we only care about params.quizId.
+  const { quizId } = params;
 
-  // ② Create your Supabase server client
   const supabase = createServerClient();
 
-  // ③ (Optional) if you need a dummy user ID, fetch one from profiles
+  // (optional) fetch a dummy user ID
   const { data: profiles, error: profErr } = await supabase
     .from("profiles")
     .select("id")
     .limit(1);
 
-  if (profErr || !profiles || profiles.length === 0) {
+  if (profErr || !profiles?.length) {
     return NextResponse.json(
       { error: "No user_profiles found to use as dummy user_id" },
       { status: 500 }
@@ -26,7 +26,7 @@ export async function POST(
   }
   const dummyUserId = profiles[0].id;
 
-  // ④ Insert a new quiz_attempt row and return it
+  // Insert new attempt
   const { data: attempt, error } = await supabase
     .from("quiz_attempts")
     .insert({
@@ -34,7 +34,7 @@ export async function POST(
       user_id: dummyUserId,
       started_at: new Date().toISOString(),
     })
-    .select() // ask Supabase to return the new row
+    .select()
     .single();
 
   if (error || !attempt) {
