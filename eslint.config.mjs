@@ -1,3 +1,5 @@
+// eslint.config.mjs
+
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { FlatCompat } from "@eslint/eslintrc";
@@ -10,7 +12,16 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  // 1) Pull in all of Next’s core rules:
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+
+  // 2) Disable the “no-html-link-for-pages” rule under /app
+  {
+    files: ["app/**/*.ts", "app/**/*.tsx"],
+    rules: {
+      "@next/next/no-html-link-for-pages": "off",
+    },
+  },
 ];
 
 export default eslintConfig;
