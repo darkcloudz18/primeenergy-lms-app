@@ -1,10 +1,7 @@
-// src/app/api/courses/[courseId]/lessons/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { Lesson } from "@/lib/types";
 
-// In App Router, the handler signature must be (req: NextRequest, context: { params: { ... } })
 export async function GET(
   _req: NextRequest,
   context: { params: { courseId: string } }
