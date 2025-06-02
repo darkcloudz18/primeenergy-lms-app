@@ -1,23 +1,17 @@
-// src/app/courses/[courseId]/modules/[moduleId]/quiz/[quizId]/page.tsx
+// src/app/api/lessons/route.ts
 
-import QuizPageClient from "./QuizPageClient";
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-interface PageProps {
-  params: {
-    courseId: string;
-    moduleId: string; // (we still accept moduleId in the URL, but we won't forward it)
-    quizId: string;
-  };
-}
+export async function GET(request: Request) {
+  // ...fetch lessons from Supabase...
+  const { data, error } = await supabaseAdmin
+    .from("lessons")
+    .select("id, title, content, type, ordering, image_url, created_at");
 
-export default function QuizPage({ params }: PageProps) {
-  const { courseId, quizId } = params;
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
-  return (
-    <div className="max-w-3xl mx-auto my-8">
-      <h1 className="text-2xl font-semibold mb-4">Quiz</h1>
-      {/* Only pass courseId and quizId */}
-      <QuizPageClient courseId={courseId} quizId={quizId} />
-    </div>
-  );
+  return NextResponse.json({ lessons: data });
 }
