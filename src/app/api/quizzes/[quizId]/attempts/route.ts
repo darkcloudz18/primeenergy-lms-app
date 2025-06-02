@@ -2,13 +2,13 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 
-// Instead of “context: any”, use a type that matches Next.js’s built-in shape:
-interface HandlerContext {
-  params: { quizId: string };
-  // (there may also be other fields like `searchParams`, but we only care about `params` here)
-}
-
-export async function POST(request: Request, context: HandlerContext) {
+export async function POST(
+  request: Request,
+  context: {
+    params: { quizId: string };
+    searchParams: Record<string, string | string[]>;
+  }
+) {
   const { quizId } = context.params;
   const supabase = createServerClient();
 
