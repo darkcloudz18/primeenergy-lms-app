@@ -1,12 +1,10 @@
-// next.config.ts
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   reactStrictMode: true,
 
   images: {
     domains: ["funllevofdmacyepqgfc.supabase.co"],
-    // Alternatively, you can be more specific with remotePatterns:
+    // If you prefer remotePatterns, you could write:
     // remotePatterns: [
     //   {
     //     protocol: "https",
