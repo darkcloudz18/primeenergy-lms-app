@@ -2,46 +2,37 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 
-export async function POST(
-  request: Request,
-  context: { params: { quizId: string; questionId: string } }
-) {
-  // Extract questionId from context.params (we never actually use quizId here)
-  const { questionId } = context.params;
+export async function POST(request: Request) {
+  // 1) Grab the raw pathname from the incoming URL:
+  const { pathname } = new URL(request.url);
+  //    e.g. pathname = "/api/admin/quizzes/abc123/questions/xyz789/options"
+  const segments = pathname.split("/");
+  //    ["", "api", "admin", "quizzes", "abc123", "questions", "xyz789", "options"]
+  const quizId = segments[4]; // “abc123”
+  const questionId = segments[6]; // “xyz789”
 
-  // Create a Supabase server client
   const supabase = createServerClient();
 
-  // Attempt to parse JSON payload
-  let body: { text: string; is_correct: boolean };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+  // 2) Read the request body, if you expect JSON (optional):
+  //    const body = await request.json();
+  //    (e.g. if you’re inserting a new “quiz_option” with some fields)
 
-  const { text, is_correct } = body;
-  if (typeof text !== "string" || typeof is_correct !== "boolean") {
-    return NextResponse.json(
-      { error: "`text` must be a string and `is_correct` a boolean." },
-      { status: 400 }
-    );
-  }
-
-  // Insert into your `quiz_options` table
-  const { data, error } = await supabase
+  // 3) For example, insert a new option under (quizId, questionId):
+  const { data: newOption, error: insertErr } = await supabase
     .from("quiz_options")
     .insert({
+      quiz_id: quizId,
       question_id: questionId,
-      text,
-      is_correct,
+      text: (await request.json()).text, // or however you structure your payload
+      is_correct: (await request.json()).is_correct,
+      ordering: (await request.json()).ordering || 1,
     })
-    .select() // return the full row
+    .select()
     .single();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (insertErr || !newOption) {
+    return NextResponse.json({ error: insertErr?.message }, { status: 500 });
   }
 
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json(newOption, { status: 201 });
 }
