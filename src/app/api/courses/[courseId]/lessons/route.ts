@@ -5,9 +5,9 @@ import type { Lesson } from "@/lib/types";
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { courseId: string } } // <--- CHANGE IS HERE
+  { params }: { params: { courseId: string } } // This line is correct now.
 ) {
-  const { courseId } = params; // Access courseId directly from params
+  const { courseId } = params; // Access courseId directly from params.
 
   // 1) Fetch all modules (with nested lessons) for the given courseId:
   const { data: modulesRaw, error: modulesError } = await supabaseAdmin
