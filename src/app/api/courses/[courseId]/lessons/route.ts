@@ -4,12 +4,12 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { Lesson } from "@/lib/types";
 
 export async function GET(
-  _request: NextRequest,
-  { params }: { params: { courseId: string } } // <--- CHANGE IS HERE
+  req: NextRequest,
+  context: { params: { courseId: string } }
 ) {
-  const { courseId } = params; // Access courseId directly from params
+  const { courseId } = context.params;
 
-  // 1) Fetch all modules (with nested lessons) for the given courseId:
+  // 1) Fetch modules + nested lessons in one shot:
   const { data: modulesRaw, error: modulesError } = await supabaseAdmin
     .from("modules")
     .select(
@@ -37,7 +37,7 @@ export async function GET(
     return NextResponse.json({ error: modulesError.message }, { status: 500 });
   }
 
-  // 2) Flatten out all lessons from every module:
+  // 2) Flatten out all lessons:
   const allLessons: Lesson[] = [];
   modulesRaw.forEach((mod) => {
     if (Array.isArray(mod.lessons)) {
