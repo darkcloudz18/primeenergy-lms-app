@@ -3,16 +3,13 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { Course, Lesson } from "@/lib/types";
 
-interface Params {
-  params: {
-    courseId: string;
-  };
-}
-
-export async function GET(_request: Request, { params }: Params) {
+export async function GET(
+  _request: Request,
+  { params }: { params: { courseId: string } }
+) {
   const { courseId } = params;
 
-  // Fetch course including created_at
+  // 1) Fetch the course row
   const { data: course, error: courseError } = await supabaseAdmin
     .from("courses")
     .select(
@@ -26,7 +23,7 @@ export async function GET(_request: Request, { params }: Params) {
   }
   const typedCourse = course as Course;
 
-  // Fetch lessons including created_at
+  // 2) Fetch all lessons for that course
   const { data: lessonsRaw, error: lessonError } = await supabaseAdmin
     .from("lessons")
     .select("id, title, content, type, ordering, image_url, created_at")
@@ -38,8 +35,9 @@ export async function GET(_request: Request, { params }: Params) {
   }
   const lessons = (lessonsRaw as Lesson[]) || [];
 
+  // 3) Return both course + lessons
   return NextResponse.json({
     course: typedCourse,
-    lessons,
+    lessons: lessons,
   });
 }
