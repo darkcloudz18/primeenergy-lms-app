@@ -3,9 +3,9 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 
 export async function POST(
-  request: Request,
-  { params }: { params: { quizId: string; questionId: string } }
-) {
+  request: NextRequest,
+  context: { params: { quizId: string; questionId: string } }
+): Promise<NextResponse> {
   const { questionId } = params;
   const payload = await request.json();
   // payload: { text: string, is_correct: boolean, ordering: number }
