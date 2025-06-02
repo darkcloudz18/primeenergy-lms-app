@@ -1,16 +1,16 @@
 // src/app/api/courses/[courseId]/lessons/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { Lesson } from "@/lib/types";
 
+// Notice: we explicitly type “context” as { params: { courseId: string } }.
 export async function GET(
-  _req: NextRequest,
-  { params }: { params: { courseId: string } }
+  _request: NextRequest,
+  context: { params: { courseId: string } }
 ) {
-  const courseId = params.courseId;
+  const { courseId } = context.params;
 
-  // 1) Fetch all modules (including nested lessons) for this course:
+  // 1) Fetch modules (with nested lessons) in one query
   const { data: modulesRaw, error: modulesError } = await supabaseAdmin
     .from("modules")
     .select(
@@ -38,7 +38,7 @@ export async function GET(
     return NextResponse.json({ error: modulesError.message }, { status: 500 });
   }
 
-  // 2) Flatten every lesson into a single array
+  // 2) Flatten out every lesson from all modules:
   const allLessons: Lesson[] = [];
   modulesRaw.forEach((mod) => {
     if (Array.isArray(mod.lessons)) {
