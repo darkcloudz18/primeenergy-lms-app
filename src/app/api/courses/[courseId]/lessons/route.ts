@@ -1,15 +1,17 @@
 // src/app/api/courses/[courseId]/lessons/route.ts
-import { NextResponse } from "next/server";
+
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { Lesson } from "@/lib/types";
 
+// In App Router, the handler signature must be (req: NextRequest, context: { params: { ... } })
 export async function GET(
-  _req: Request,
-  { params }: { params: { courseId: string } }
+  _req: NextRequest,
+  context: { params: { courseId: string } }
 ) {
-  const courseId = params.courseId;
+  const courseId = context.params.courseId;
 
-  // 1) Fetch all modules for this course, including each nested lesson’s module_id
+  // 1) Fetch all modules (including nested lessons) for this course
   const { data: modulesRaw, error: modulesError } = await supabaseAdmin
     .from("modules")
     .select(
@@ -37,11 +39,11 @@ export async function GET(
     return NextResponse.json({ error: modulesError.message }, { status: 500 });
   }
 
-  // 2) Now that each lesson row actually has a module_id field, it matches `Lesson`
+  // 2) Flatten out every lesson into a single array
   let allLessons: Lesson[] = [];
-  modulesRaw.forEach((m: { lessons?: Lesson[] }) => {
-    if (Array.isArray(m.lessons)) {
-      allLessons = allLessons.concat(m.lessons);
+  modulesRaw.forEach((mod) => {
+    if (Array.isArray(mod.lessons)) {
+      allLessons = allLessons.concat(mod.lessons as Lesson[]);
     }
   });
 
