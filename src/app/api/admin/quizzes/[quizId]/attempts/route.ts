@@ -1,3 +1,4 @@
+// src/app/api/admin/quizzes/[quizId]/attempts/route.ts
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 
@@ -5,10 +6,13 @@ export async function POST(
   request: Request,
   context: { params: { quizId: string } }
 ) {
-  const { quizId } = await context.params;
+  // ① Pull quizId directly out of context.params (no Promise wrapper)
+  const { quizId } = context.params;
 
+  // ② Create your Supabase server client
   const supabase = createServerClient();
 
+  // ③ (Optional) if you need a dummy user ID, fetch one from profiles
   const { data: profiles, error: profErr } = await supabase
     .from("profiles")
     .select("id")
@@ -22,6 +26,7 @@ export async function POST(
   }
   const dummyUserId = profiles[0].id;
 
+  // ④ Insert a new quiz_attempt row and return it
   const { data: attempt, error } = await supabase
     .from("quiz_attempts")
     .insert({
@@ -29,7 +34,7 @@ export async function POST(
       user_id: dummyUserId,
       started_at: new Date().toISOString(),
     })
-    .select()
+    .select() // ask Supabase to return the new row
     .single();
 
   if (error || !attempt) {
