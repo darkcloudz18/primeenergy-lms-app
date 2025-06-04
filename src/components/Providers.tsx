@@ -1,8 +1,17 @@
 // src/components/Providers.tsx
 "use client";
 
-import { SessionProvider } from "next-auth/react";
+import { SessionContextProvider } from "@supabase/auth-helpers-react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-  return <SessionProvider>{children}</SessionProvider>;
+  // This runs in the browser, so `createClientComponentClient()` will produce
+  // a fully functional Supabase client (complete with `.auth.signInWithPassword()`).
+  const supabaseClient = createClientComponentClient();
+
+  return (
+    <SessionContextProvider supabaseClient={supabaseClient}>
+      {children}
+    </SessionContextProvider>
+  );
 }

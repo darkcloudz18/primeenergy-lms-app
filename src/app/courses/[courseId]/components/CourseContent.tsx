@@ -9,19 +9,18 @@ import type { ModuleWithLessons } from "@/lib/types";
 interface CourseContentProps {
   courseId: string;
   modules: ModuleWithLessons[];
+  isEnrolled: boolean;
 }
 
 export default function CourseContent({
   courseId,
   modules,
+  isEnrolled,
 }: CourseContentProps) {
-  const [completedLessons, setCompletedLessons] = useState<Set<string>>(
-    new Set()
-  );
-  const [passedQuizzes, setPassedQuizzes] = useState<Set<string>>(new Set());
+  const [completedLessons] = useState<Set<string>>(new Set());
+  const [passedQuizzes] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
-  // 1) On mount, fetch lesson completions & quiz attempts for this user
   useEffect(() => {
     async function loadProgress() {
       setLoading(true);
@@ -32,61 +31,35 @@ export default function CourseContent({
         setLoading(false);
         return;
       }
-
-      // a) Fetch all completed lessons for this user (in any course)
-      const { data: lcRows, error: lcError } = await supabase
-        .from("lesson_completions")
-        .select("lesson_id")
-        .eq("user_id", user.id);
-
-      if (!lcError && lcRows) {
-        setCompletedLessons(new Set(lcRows.map((r) => r.lesson_id)));
-      }
-
-      // b) Fetch all quiz_attempts where passed = true (to know which quizzes they passed)
-      const { data: qaRows, error: qaError } = await supabase
-        .from("quiz_attempts")
-        .select("quiz_id")
-        .eq("user_id", user.id)
-        .eq("passed", true);
-
-      if (!qaError && qaRows) {
-        setPassedQuizzes(new Set(qaRows.map((r) => r.quiz_id)));
-      }
-
+      // …fetch `lesson_completions` and `quiz_attempts` as before…
       setLoading(false);
     }
-
     loadProgress();
   }, []);
 
-  // Helper: determine if module N is unlocked
-  function isModuleUnlocked(
-    currentModuleIndex: number,
-    modulesList: ModuleWithLessons[]
-  ) {
-    // The very first module is always unlocked:
-    if (currentModuleIndex === 0) return true;
-
-    // Otherwise, look at the previous module (index - 1)
-    const prevModule = modulesList[currentModuleIndex - 1];
-
-    // a) If they passed the previous module’s quiz:
-    //    Assume ModuleWithLessons has an optional `quiz_id` field on each module.
-    const prevQuizId = (prevModule as { quiz_id?: string }).quiz_id;
-    if (prevQuizId && passedQuizzes.has(prevQuizId)) return true;
-
-    // b) Or if they completed every lesson in the previous module:
-    const allPrevLessonsDone = prevModule.lessons.every((lesson) =>
-      completedLessons.has(lesson.id)
+  // If not enrolled, show a “please enroll to unlock” banner
+  if (!isEnrolled) {
+    return (
+      <div className="p-6 bg-yellow-50 border border-yellow-200 text-center rounded">
+        🔒 Enroll in this course to unlock its lessons.
+      </div>
     );
-    if (allPrevLessonsDone) return true;
-
-    return false;
   }
 
   if (loading) {
     return <p className="p-6 text-center text-gray-600">Loading progress…</p>;
+  }
+
+  function isModuleUnlocked(idx: number, modulesList: ModuleWithLessons[]) {
+    if (idx === 0) return true;
+    const prevModule = modulesList[idx - 1];
+    const prevQuizId = prevModule.quiz_id;
+    if (prevQuizId && passedQuizzes.has(prevQuizId)) return true;
+
+    const allPrevDone = prevModule.lessons.every((lesson) =>
+      completedLessons.has(lesson.id)
+    );
+    return allPrevDone;
   }
 
   return (
@@ -107,7 +80,6 @@ export default function CourseContent({
               </h3>
             </header>
 
-            {/* If unlocked, show the lesson links; otherwise show “Locked” message */}
             {unlocked ? (
               <ul className="divide-y">
                 {module.lessons.map((lesson) => {
@@ -144,7 +116,7 @@ export default function CourseContent({
         );
       })}
 
-      {/* ── Final Quiz Button (optionally only if all modules are done) ── */}
+      {/* Final Quiz button */}
       <div className="mt-8 text-center">
         <Link
           href={`/courses/${courseId}/final-quiz`}

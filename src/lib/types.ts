@@ -41,6 +41,7 @@ export interface Module {
   course_id: string; // foreign key back to Course.id
   title: string;
   ordering: number;
+  quiz_id?: string;
   created_at: string; // if you have a created_at column there
 }
 
@@ -63,6 +64,7 @@ export type ModuleWithLessons = {
   id: string;
   title: string;
   ordering: number;
+  quiz_id?: string;
   lessons: Lesson[];
 };
 
