@@ -1,13 +1,13 @@
 // src/app/courses/[courseId]/components/ClientCoursePage.tsx
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useSupabaseClient, useSession } from "@supabase/auth-helpers-react";
+import { useState, useEffect } from "react";
+import { useSession, useSupabaseClient } from "@supabase/auth-helpers-react";
 import CourseHeader from "./CourseHeader";
 import CourseContent from "./CourseContent";
 import type { ModuleWithLessons } from "@/lib/types";
 
-interface ClientCoursePageProps {
+interface Props {
   courseId: string;
   title: string;
   description?: string;
@@ -15,7 +15,7 @@ interface ClientCoursePageProps {
   category?: string;
   level?: string;
   tag?: string;
-  enrolledCount: number; // from server
+  enrolledCount: number;
   modules: ModuleWithLessons[];
 }
 
@@ -27,79 +27,63 @@ export default function ClientCoursePage({
   category,
   level,
   tag,
-  enrolledCount: initialCount,
+  enrolledCount,
   modules,
-}: ClientCoursePageProps) {
+}: Props) {
   const supabase = useSupabaseClient();
   const session = useSession();
-  const user = session?.user ?? null;
+  const user = session?.user;
 
-  const [enrolled, setEnrolled] = useState(false);
-  const [enrolledCount, setEnrolledCount] = useState(initialCount);
-  const [loadingEnroll, setLoadingEnroll] = useState(false);
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  const [loadingEnroll, setLoadingEnroll] = useState(true);
 
-  // 1) On mount, check if this user is already enrolled
+  // 1️⃣ On mount, check if this user is enrolled
   useEffect(() => {
     if (!user) {
-      setEnrolled(false);
+      setIsEnrolled(false);
+      setLoadingEnroll(false);
       return;
     }
-
+    setLoadingEnroll(true);
     supabase
       .from("enrollments")
       .select("id", { head: true })
       .eq("course_id", courseId)
       .eq("user_id", user.id)
-      .then(({ count, error }) => {
-        if (!error && count && count > 0) {
-          setEnrolled(true);
-        } else {
-          setEnrolled(false);
-        }
+      .then(({ count }) => {
+        setIsEnrolled(count !== 0);
+        setLoadingEnroll(false);
       });
-  }, [supabase, user, courseId]);
+  }, [supabase, courseId, user]);
 
-  // 2) Toggle enroll/unenroll
-  async function onToggleEnroll() {
+  // 2️⃣ Toggle enroll / unenroll
+  const onToggleEnroll = async () => {
     if (!user) {
       alert("Please sign in first");
       return;
     }
     setLoadingEnroll(true);
-
-    if (enrolled) {
-      // Unenroll
-      const { error: deleteError } = await supabase
+    if (isEnrolled) {
+      await supabase
         .from("enrollments")
         .delete()
-        .match({ course_id: courseId, user_id: user.id });
-
-      if (!deleteError) {
-        setEnrolled(false);
-        setEnrolledCount((c) => Math.max(0, c - 1));
-      }
+        .eq("course_id", courseId)
+        .eq("user_id", user.id);
+      setIsEnrolled(false);
     } else {
-      // Enroll
-      const { error: insertError } = await supabase
+      await supabase
         .from("enrollments")
-        .insert([{ course_id: courseId, user_id: user.id }]);
-
-      if (!insertError) {
-        setEnrolled(true);
-        setEnrolledCount((c) => c + 1);
-      }
+        .insert({ course_id: courseId, user_id: user.id });
+      setIsEnrolled(true);
     }
-
     setLoadingEnroll(false);
-  }
+  };
 
-  // 3) Compute the “first lesson” path, if it exists
-  let firstLessonPath: string | null = null;
-  if (modules.length > 0 && modules[0].lessons.length > 0) {
-    const firstModuleId = modules[0].id;
-    const firstLessonId = modules[0].lessons[0].id;
-    firstLessonPath = `/courses/${courseId}/modules/${firstModuleId}/lessons/${firstLessonId}`;
-  }
+  // 3️⃣ Build “Start Learning” URL for the very first lesson:
+  const firstLessonPath =
+    isEnrolled && modules.length > 0 && modules[0].lessons.length > 0
+      ? `/courses/${courseId}/modules/${modules[0].id}/lessons/${modules[0].lessons[0].id}`
+      : null;
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto p-6">
@@ -112,16 +96,16 @@ export default function ClientCoursePage({
         level={level}
         tag={tag}
         enrolledCount={enrolledCount}
-        isEnrolled={enrolled}
-        onToggleEnroll={onToggleEnroll}
+        isEnrolled={isEnrolled}
         loadingEnroll={loadingEnroll}
+        onToggleEnroll={onToggleEnroll}
         firstLessonPath={firstLessonPath}
       />
 
       <CourseContent
         courseId={courseId}
         modules={modules}
-        isEnrolled={enrolled}
+        isEnrolled={isEnrolled}
       />
     </div>
   );

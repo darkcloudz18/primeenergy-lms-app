@@ -1,12 +1,12 @@
 // src/app/courses/[courseId]/components/CourseContent.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import type { ModuleWithLessons } from "@/lib/types";
 
-interface CourseContentProps {
+interface Props {
   courseId: string;
   modules: ModuleWithLessons[];
   isEnrolled: boolean;
@@ -16,9 +16,11 @@ export default function CourseContent({
   courseId,
   modules,
   isEnrolled,
-}: CourseContentProps) {
-  const [completedLessons] = useState<Set<string>>(new Set());
-  const [passedQuizzes] = useState<Set<string>>(new Set());
+}: Props) {
+  const [completedLessons, setCompletedLessons] = useState<Set<string>>(
+    new Set()
+  );
+  const [passedQuizzes, setPassedQuizzes] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,17 +33,42 @@ export default function CourseContent({
         setLoading(false);
         return;
       }
-      // …fetch `lesson_completions` and `quiz_attempts` as before…
+
+      const { data: lc } = await supabase
+        .from("lesson_completions")
+        .select("lesson_id")
+        .eq("user_id", user.id);
+
+      setCompletedLessons(new Set(lc?.map((r) => r.lesson_id) || []));
+
+      const { data: qa } = await supabase
+        .from("quiz_attempts")
+        .select("quiz_id")
+        .eq("user_id", user.id)
+        .eq("passed", true);
+
+      setPassedQuizzes(new Set(qa?.map((r) => r.quiz_id) || []));
       setLoading(false);
     }
     loadProgress();
   }, []);
 
-  // If not enrolled, show a “please enroll to unlock” banner
+  function isModuleUnlocked(idx: number) {
+    if (!isEnrolled) return false;
+    if (idx === 0) return true;
+
+    const prev = modules[idx - 1];
+    if (prev.quiz_id && passedQuizzes.has(prev.quiz_id)) return true;
+    if (prev.lessons.every((l) => completedLessons.has(l.id))) return true;
+    return false;
+  }
+
   if (!isEnrolled) {
     return (
-      <div className="p-6 bg-yellow-50 border border-yellow-200 text-center rounded">
-        🔒 Enroll in this course to unlock its lessons.
+      <div className="p-6 text-center text-gray-600">
+        <span className="inline-flex items-center">
+          🔒 Enroll in this course to unlock its lessons.
+        </span>
       </div>
     );
   }
@@ -50,39 +77,26 @@ export default function CourseContent({
     return <p className="p-6 text-center text-gray-600">Loading progress…</p>;
   }
 
-  function isModuleUnlocked(idx: number, modulesList: ModuleWithLessons[]) {
-    if (idx === 0) return true;
-    const prevModule = modulesList[idx - 1];
-    const prevQuizId = prevModule.quiz_id;
-    if (prevQuizId && passedQuizzes.has(prevQuizId)) return true;
-
-    const allPrevDone = prevModule.lessons.every((lesson) =>
-      completedLessons.has(lesson.id)
-    );
-    return allPrevDone;
-  }
-
   return (
     <section className="space-y-12">
-      {modules.map((module, idx) => {
-        const unlocked = isModuleUnlocked(idx, modules);
-
+      {modules.map((mod, idx) => {
+        const unlocked = isModuleUnlocked(idx);
         return (
           <div
-            key={module.id}
+            key={mod.id}
             className={`border rounded-lg overflow-hidden shadow-sm ${
               unlocked ? "" : "opacity-50"
             }`}
           >
             <header className="bg-gray-100 px-6 py-4">
               <h3 className="text-xl font-semibold">
-                Module {module.ordering}: {module.title}
+                Module {mod.ordering}: {mod.title}
               </h3>
             </header>
 
             {unlocked ? (
               <ul className="divide-y">
-                {module.lessons.map((lesson) => {
+                {mod.lessons.map((lesson) => {
                   const done = completedLessons.has(lesson.id);
                   return (
                     <li
@@ -90,7 +104,7 @@ export default function CourseContent({
                       className="px-6 py-4 flex justify-between items-center"
                     >
                       <Link
-                        href={`/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`}
+                        href={`/courses/${courseId}/modules/${mod.id}/lessons/${lesson.id}`}
                         className="flex-1 hover:text-green-600 transition-colors"
                       >
                         {lesson.ordering}. {lesson.title}
@@ -108,15 +122,13 @@ export default function CourseContent({
               </ul>
             ) : (
               <div className="p-6 text-center text-gray-500">
-                🔒 This module is locked. Complete previous module’s lessons or
-                quiz first.
+                🔒 Complete prior module to unlock.
               </div>
             )}
           </div>
         );
       })}
 
-      {/* Final Quiz button */}
       <div className="mt-8 text-center">
         <Link
           href={`/courses/${courseId}/final-quiz`}

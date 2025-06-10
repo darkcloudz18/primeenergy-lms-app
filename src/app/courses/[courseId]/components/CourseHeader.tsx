@@ -1,7 +1,6 @@
 // src/app/courses/[courseId]/components/CourseHeader.tsx
 "use client";
 
-import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -12,7 +11,7 @@ import {
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 
-interface CourseHeaderProps {
+interface Props {
   courseId: string;
   title: string;
   description?: string;
@@ -23,14 +22,15 @@ interface CourseHeaderProps {
   tag?: string;
 
   isEnrolled: boolean;
-  onToggleEnroll: () => Promise<void>;
   loadingEnroll: boolean;
+  onToggleEnroll: () => void;
 
-  /** If the user is enrolled, “Start Learning” goes here */
+  /** Only if enrolled and you computed it above */
   firstLessonPath: string | null;
 }
 
 export default function CourseHeader({
+  //courseId,
   title,
   description,
   imageUrl,
@@ -38,14 +38,15 @@ export default function CourseHeader({
   category,
   level,
   tag,
+
   isEnrolled,
-  onToggleEnroll,
   loadingEnroll,
+  onToggleEnroll,
   firstLessonPath,
-}: CourseHeaderProps) {
+}: Props) {
   return (
     <header className="grid grid-cols-3 gap-6 items-start bg-white p-6 rounded shadow">
-      {/* Left side: title / image / description */}
+      {/* Left: Title / Image / Description */}
       <div className="col-span-2 space-y-4">
         <h1 className="text-3xl font-bold">{title}</h1>
         {imageUrl && (
@@ -58,32 +59,36 @@ export default function CourseHeader({
         )}
       </div>
 
-      {/* Right sidebar */}
+      {/* Right‐side card */}
       <aside className="space-y-4">
-        {/* If enrolled, show “Start Learning” first */}
-        {isEnrolled && firstLessonPath && (
-          <Link
-            href={firstLessonPath}
-            className="w-full block text-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
+        {!isEnrolled && (
+          <button
+            onClick={onToggleEnroll}
+            disabled={loadingEnroll}
+            className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded disabled:opacity-50"
           >
-            Start Learning
-          </Link>
+            {loadingEnroll ? "…" : "Enroll now"}
+          </button>
         )}
 
-        {/* Enroll / Unenroll button */}
-        <button
-          onClick={onToggleEnroll}
-          disabled={loadingEnroll}
-          className={`w-full px-4 py-2 rounded text-white ${
-            isEnrolled
-              ? "bg-red-600 hover:bg-red-700"
-              : "bg-green-600 hover:bg-green-700"
-          } disabled:opacity-50`}
-        >
-          {loadingEnroll ? "…" : isEnrolled ? "Unenroll" : "Enroll now"}
-        </button>
+        {isEnrolled && firstLessonPath && (
+          <>
+            <Link
+              href={firstLessonPath}
+              className="block w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+            >
+              Start Learning
+            </Link>
+            <button
+              onClick={onToggleEnroll}
+              disabled={loadingEnroll}
+              className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded disabled:opacity-50"
+            >
+              {loadingEnroll ? "…" : "Unenroll"}
+            </button>
+          </>
+        )}
 
-        {/* Course info list */}
         <ul className="bg-gray-50 border rounded divide-y">
           <li className="flex items-center px-4 py-2">
             <UsersIcon className="w-5 h-5 text-gray-600 mr-2" />
