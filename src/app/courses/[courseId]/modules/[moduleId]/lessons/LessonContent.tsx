@@ -13,8 +13,8 @@ interface LessonContentProps {
 }
 
 export default function LessonContent({
-  courseId,
-  moduleId,
+  //courseId,
+  //moduleId,
   lessonId,
   lessonTitle,
   lessonContent,

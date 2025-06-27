@@ -15,6 +15,8 @@ export interface Course {
   tag: string | null;
 
   created_at: string;
+  archived: boolean;
+  instructor_id: string;
 }
 
 export interface CourseWithModules {
@@ -123,6 +125,7 @@ export interface CourseFormData {
 export interface QuizEntity {
   id: string;
   course_id: string; // foreign key back to Course.id
+  module_id?: string;
   title: string;
   description?: string; // optional text about the quiz
   passing_score: number;

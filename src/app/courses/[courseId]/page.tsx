@@ -13,7 +13,7 @@ export default async function CoursePage({ params }: PageProps) {
   // ── 1) Fetch course info (no generic on .from) ───────────────────────────
   const { data: course, error: courseError } = await supabaseAdmin
     .from("courses")
-    .select("id, title, description, image_url, category, level, tag")
+    .select("id, title, description, image_url, category, level, tag, created_at ")
     .eq("id", courseId)
     .single();
 
