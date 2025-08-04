@@ -1,138 +1,227 @@
-// src/app/auth/register/page.tsx
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useSupabaseClient } from "@supabase/auth-helpers-react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default function RegisterPage() {
-  const supabase = useSupabaseClient();
+  const supabase = createClientComponentClient();
   const router = useRouter();
 
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"student" | "tutor" | "admin">("student");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+
     setLoading(true);
 
-    // 1) Sign up the user via Supabase Auth
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp(
+    const { error: signUpError, data: signUpData } = await supabase.auth.signUp(
       {
         email,
         password,
-        options: { data: { role } },
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            role: "student",
+          },
+        },
       }
     );
 
-    if (signUpError && signUpError.message !== "User already registered") {
-      alert("Error signing up: " + signUpError.message);
+    if (signUpError) {
+      setError(signUpError.message);
       setLoading(false);
       return;
     }
 
-    // 2) Determine the user object (new or existing)
-    const user =
-      signUpData?.user ?? (await supabase.auth.getSession()).data.session?.user;
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    if (!user) {
-      alert("Could not retrieve user. Please sign in.");
+    const userId = session?.user?.id || signUpData?.user?.id;
+
+    if (!userId) {
+      setError("Could not determine user ID after signup.");
       setLoading(false);
-      router.push("/auth/login");
       return;
     }
 
-    // 3) Call our serverless API to insert into `profiles` (service role)
-    const res = await fetch("/api/profiles", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: user.id,
-        email: user.email,
-        role,
-      }),
+    const { error: profileError } = await supabase.from("profiles").upsert({
+      id: userId,
+      first_name: firstName,
+      last_name: lastName,
+      role: "student",
+      email,
+      status: "pending",
     });
 
-    const json = await res.json();
-    if (!res.ok) {
-      alert("Error saving profile: " + json.error);
+    if (profileError) {
+      setError("Failed to create profile: " + profileError.message);
       setLoading(false);
       return;
     }
 
-    // 4) Success
-    setLoading(false);
-    alert("Registration successful!");
-    // Redirect based on role
-    if (role === "admin") {
-      router.push("/admin");
-    } else if (role === "tutor") {
-      router.push("/dashboard/tutor");
-    } else {
-      router.push("/dashboard");
+    try {
+      await fetch("/api/admin/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          firstName,
+          lastName,
+          email,
+        }),
+      });
+    } catch (notifyErr) {
+      console.error("Failed to notify admins:", notifyErr);
     }
+
+    setLoading(false);
+    setSubmitted(true);
   };
 
+  if (submitted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+        <div className="bg-white rounded-lg shadow-md w-full max-w-md p-8">
+          <h1 className="text-2xl font-bold mb-4">Registration Submitted</h1>
+          <p className="mb-2">
+            Thank you, <span className="font-medium">{firstName}</span>. Your
+            account is pending approval by an admin.
+          </p>
+          <p>
+            Once approved you’ll receive a welcome email. If declined, you’ll
+            get a notification with next steps.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-md mx-auto p-6 bg-white rounded shadow mt-12">
-      <h1 className="text-2xl font-bold mb-4">Register</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Email */}
-        <div>
-          <label className="block font-medium">Email</label>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.currentTarget.value)}
-            className="mt-1 w-full border rounded px-3 py-2"
-          />
-        </div>
-
-        {/* Password */}
-        <div>
-          <label className="block font-medium">Password</label>
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.currentTarget.value)}
-            className="mt-1 w-full border rounded px-3 py-2"
-          />
-        </div>
-
-        {/* Role */}
-        <div>
-          <label className="block font-medium mb-1">Role</label>
-          <select
-            value={role}
-            onChange={(e) =>
-              setRole(e.currentTarget.value as "student" | "tutor")
-            }
-            className="w-full border rounded px-3 py-2"
+    <div className="min-h-screen flex items-start mt-10 justify-center bg-gray-100 px-4">
+      <div className="bg-white rounded-lg shadow-md w-full max-w-md p-8">
+        <h1 className="text-2xl font-semibold mb-6">Register</h1>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input
+              aria-label="First name"
+              type="text"
+              placeholder="First name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              required
+              className="border px-3 py-2 rounded w-full"
+            />
+            <input
+              aria-label="Last name"
+              type="text"
+              placeholder="Last name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              required
+              className="border px-3 py-2 rounded w-full"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1" htmlFor="email">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="border px-3 py-2 rounded w-full"
+            />
+          </div>
+          <div>
+            <label
+              className="block text-sm font-medium mb-1"
+              htmlFor="password"
+            >
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="border px-3 py-2 rounded w-full"
+            />
+          </div>
+          <div>
+            <label
+              className="block text-sm font-medium mb-1"
+              htmlFor="confirmPassword"
+            >
+              Confirm Password
+            </label>
+            <input
+              id="confirmPassword"
+              type="password"
+              placeholder="Confirm password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              className="border px-3 py-2 rounded w-full"
+            />
+          </div>
+          <div className="hidden">
+            <label className="block text-sm font-medium mb-1" htmlFor="role">
+              Role
+            </label>
+            <select
+              id="role"
+              value="student"
+              disabled
+              className="border px-3 py-2 rounded w-full bg-gray-50"
+            >
+              <option value="student">Student</option>
+            </select>
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="mt-2 bg-green-600 hover:bg-green-700 transition-colors text-white font-medium px-4 py-3 rounded w-full disabled:opacity-60"
           >
-            <option value="student">Student</option>
-            <option value="tutor">Tutor</option>
-          </select>
-        </div>
-
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-        >
-          {loading ? "Registering…" : "Register"}
-        </button>
-      </form>
-      <p className="mt-4 text-sm text-center">
-        Already have an account?{" "}
-        <a href="/auth/login" className="text-green-600 hover:underline">
-          Sign in
-        </a>
-      </p>
+            {loading ? "Registering…" : "Register"}
+          </button>
+          {error && <div className="text-red-600 text-sm">{error}</div>}
+          <p className="text-center text-sm mt-1">
+            Already have an account?{" "}
+            <Link
+              href="/auth/login"
+              className="text-green-600 font-medium hover:underline"
+            >
+              Sign in
+            </Link>
+          </p>
+        </form>
+      </div>
     </div>
   );
 }

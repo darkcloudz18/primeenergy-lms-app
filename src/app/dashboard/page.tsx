@@ -1,58 +1,68 @@
 // src/app/dashboard/page.tsx
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import type { Course } from "@/lib/types";
+import Image from "next/image";
 
-export default async function DashboardPage() {
-  // 1) Grab cookies once
-  const cookieStore = cookies();
+export default function StudentDashboardPage() {
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // 2) Create a Supabase client for Auth (reads cookies securely)
-  const supabase = createServerComponentClient({
-    cookies: () => cookieStore,
-  });
+  useEffect(() => {
+    const fetchCourses = async () => {
+      const { data, error } = await supabase
+        .from("courses")
+        .select(
+          "id, title, description, image_url, category, level, tag, archived, instructor_id, created_at"
+        )
+        .eq("archived", false);
 
-  // 3) Get the logged-in user (verifies via Auth API)
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+      if (error) {
+        console.error("Error fetching courses:", error.message);
+      } else if (Array.isArray(data)) {
+        setCourses(data);
+      }
 
-  if (userError || !user) {
-    // not signed in
-    redirect("/auth/login");
-  }
+      setLoading(false);
+    };
 
-  // 4) Fetch the canonical role from your profiles table using the SERVICE ROLE key
-  const { data: profile, error: profileError } = await supabaseAdmin
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+    fetchCourses();
+  }, []);
 
-  if (profileError || !profile) {
-    // something went wrong: no profile row
-    redirect("/auth/login");
-  }
-
-  const { role } = profile;
-
-  // 5) Now branch on the real role
-  if (role === "admin") {
-    redirect("/admin");
-  }
-  if (role === "tutor") {
-    redirect("/dashboard/tutor");
-  }
-
-  // 6) Otherwise, render the student dashboard
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold">Student Dashboard</h1>
-      {/* … your student‐only UI … */}
-    </div>
+    <main className="max-w-5xl mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-4">My Courses</h1>
+
+      {loading ? (
+        <p>Loading...</p>
+      ) : courses.length === 0 ? (
+        <p className="text-gray-500">No courses found.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {courses.map((course) => (
+            <div
+              key={course.id}
+              className="bg-white rounded-lg shadow p-4 hover:shadow-md transition"
+            >
+              <Image
+                src={course.image_url || "/default-course.jpg"}
+                alt={course.title}
+                width={400}
+                height={160}
+                className="w-full h-40 object-cover rounded"
+              />
+              <div className="mt-3">
+                <h2 className="text-xl font-semibold">{course.title}</h2>
+                <p className="text-gray-600 text-sm line-clamp-2">
+                  {course.description}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </main>
   );
 }
