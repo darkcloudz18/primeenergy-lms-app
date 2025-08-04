@@ -114,7 +114,7 @@ export default function CourseContent({
                           done ? "text-green-600" : "text-gray-400"
                         }`}
                       >
-                        {done ? "Done" : "Not Done"}
+                        {done ? "Complete" : "Incomplete"}
                       </span>
                     </li>
                   );
