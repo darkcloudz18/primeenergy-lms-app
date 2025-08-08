@@ -10,34 +10,29 @@ interface PageProps {
 export default async function CoursePage({ params }: PageProps) {
   const { courseId } = params;
 
-  // ── 1) Fetch course info (no generic on .from) ───────────────────────────
-  const { data: course, error: courseError } = await supabaseAdmin
+  // 1) fetch course
+  const { data: course } = await supabaseAdmin
     .from("courses")
-    .select("id, title, description, image_url, category, level, tag, created_at ")
+    .select(
+      "id, title, description, image_url, category, level, tag, created_at"
+    )
     .eq("id", courseId)
     .single();
+  if (!course) throw new Error("Course not found");
 
-  if (courseError || !course) {
-    throw new Error("Course not found");
-  }
-
-  // ── 2) Fetch all modules for this course (no generic on .from) ───────────
+  // 2) fetch modules (no quiz_id here)
   const { data: modulesRaw, error: modulesError } = await supabaseAdmin
     .from("modules")
     .select("id, course_id, title, ordering, created_at")
     .eq("course_id", courseId)
     .order("ordering", { ascending: true });
-
-  if (modulesError) {
-    throw new Error(modulesError.message);
-  }
+  if (modulesError) throw new Error(modulesError.message);
   const modules = (modulesRaw ?? []) as Module[];
 
-  // ── 3) Fetch all lessons for those module IDs ─────────────────────────────
-  let lessonsByModule: Record<string, Lesson[]> = {};
+  // 3) fetch lessons
   const moduleIds = modules.map((m) => m.id);
-
-  if (moduleIds.length > 0) {
+  const lessonsByModule: Record<string, Lesson[]> = {};
+  if (moduleIds.length) {
     const { data: lessonsRaw, error: lessonsError } = await supabaseAdmin
       .from("lessons")
       .select(
@@ -45,40 +40,41 @@ export default async function CoursePage({ params }: PageProps) {
       )
       .in("module_id", moduleIds)
       .order("ordering", { ascending: true });
-
-    if (lessonsError) {
-      throw new Error(lessonsError.message);
-    }
-
-    const lessons = lessonsRaw ?? [];
-    lessonsByModule = moduleIds.reduce((acc, id) => {
-      acc[id] = [];
-      return acc;
-    }, {} as Record<string, Lesson[]>);
-
-    lessons.forEach((lesson) => {
-      if (lessonsByModule[lesson.module_id]) {
-        lessonsByModule[lesson.module_id].push(lesson);
-      }
+    if (lessonsError) throw new Error(lessonsError.message);
+    // init buckets
+    for (const id of moduleIds) lessonsByModule[id] = [];
+    (lessonsRaw ?? []).forEach((ls) => {
+      lessonsByModule[ls.module_id].push(ls as Lesson);
     });
   }
 
-  // ── 4) Build ModuleWithLessons[] ────────────────────────────────────────
+  // 4) fetch quizzes so we can attach quiz_id by module
+  const { data: quizzesRaw, error: quizzesError } = await supabaseAdmin
+    .from("quizzes")
+    .select("id, module_id")
+    .in("module_id", moduleIds);
+  if (quizzesError) throw new Error(quizzesError.message);
+  const quizMap = Object.fromEntries(
+    (quizzesRaw ?? []).map((q) => [q.module_id, q.id])
+  );
+
+  // 5) build ModuleWithLessons[]
   const modulesWithLessons: ModuleWithLessons[] = modules.map((m) => ({
     id: m.id,
     title: m.title,
     ordering: m.ordering,
-    quiz_id: m.quiz_id,
+    quiz_id: quizMap[m.id] ?? undefined,
     lessons: lessonsByModule[m.id] || [],
   }));
 
-  // ── 5) Fetch enrolled count ─────────────────────────────────────────────
-  const { count: enrollCount } = await supabaseAdmin
+  // 6) fetch enrolled count
+  const { count } = await supabaseAdmin
     .from("enrollments")
-    .select("id", { count: "exact", head: true })
+    .select("id", { head: true, count: "exact" })
     .eq("course_id", courseId);
 
-  // ── 6) Return ClientCoursePage ─────────────────────────────────────────
+  const enrolledCount = count ?? 0;
+
   return (
     <ClientCoursePage
       courseId={course.id}
@@ -88,7 +84,7 @@ export default async function CoursePage({ params }: PageProps) {
       category={course.category ?? undefined}
       level={course.level ?? undefined}
       tag={course.tag ?? undefined}
-      enrolledCount={enrollCount ?? 0}
+      enrolledCount={enrolledCount}
       modules={modulesWithLessons}
     />
   );

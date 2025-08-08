@@ -1,15 +1,17 @@
-// src/app/admin/create-course/page.tsx
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useSession } from "@supabase/auth-helpers-react";
 import CourseFormWithModules from "@/components/CourseFormWithModules";
 import type { CourseFormWithModulesProps } from "@/components/CourseFormWithModules";
 
-export default function AdminCreateCoursePage() {
+export default function TutorCreateCoursePage() {
   const router = useRouter();
+  const session = useSession();
+  const user = session?.user;
 
   const handleCancel = () => {
-    router.push("/courses");
+    router.push("/dashboard/tutor");
   };
 
   const handleSave: CourseFormWithModulesProps["onSubmit"] = async ({
@@ -22,38 +24,34 @@ export default function AdminCreateCoursePage() {
     modules,
     finalQuiz,
   }) => {
+    if (!user) {
+      alert("Please sign in first.");
+      return;
+    }
+
     try {
       let imageUrl: string | null = null;
 
       if (coverFile) {
-        const uploadFormData = new FormData();
-        uploadFormData.append("file", coverFile);
+        const fd = new FormData();
+        fd.append("file", coverFile);
 
         const uploadRes = await fetch("/api/upload", {
           method: "POST",
-          credentials: "include", // ✅ send auth cookie
-          body: uploadFormData, // don't set Content-Type manually
+          body: fd,
         });
-
         if (!uploadRes.ok) {
-          let errMsg = "Upload failed";
-          try {
-            const errJson = await uploadRes.json();
-            errMsg = errJson.error || errMsg;
-          } catch {
-            errMsg = await uploadRes.text();
-          }
-          throw new Error(errMsg);
+          const err = await uploadRes.json();
+          throw new Error(err.error || "Upload failed");
         }
-
         const { url } = await uploadRes.json();
         imageUrl = url;
       }
 
+      // API should set instructor_id = auth user on the server
       const res = await fetch("/api/courses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // ✅ send auth cookie
         body: JSON.stringify({
           title,
           description,
@@ -61,28 +59,21 @@ export default function AdminCreateCoursePage() {
           category,
           tag,
           level,
-          modules,
-          finalQuiz,
+          modules, // ModuleFormData[]
+          finalQuiz, // QuizFormData | null
         }),
       });
 
       if (!res.ok) {
-        let errMsg = "Could not create course";
-        try {
-          const err = await res.json();
-          errMsg = err.error || errMsg;
-        } catch {
-          errMsg = await res.text();
-        }
-        throw new Error(errMsg);
+        const err = await res.json();
+        throw new Error(err.error || "Could not create course");
       }
 
-      const payload = await res.json();
-      router.push(`/courses/${payload.id}`);
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Unknown error creating course";
-      alert("Could not create course: " + message);
+      const { id } = await res.json();
+      router.push(`/courses/${id}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      alert("Could not create course: " + msg);
     }
   };
 

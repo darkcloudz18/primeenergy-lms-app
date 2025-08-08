@@ -1,4 +1,3 @@
-// src/app/courses/[courseId]/components/ClientCoursePage.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -36,33 +35,37 @@ export default function ClientCoursePage({
 
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [loadingEnroll, setLoadingEnroll] = useState(true);
+  const [enrollCountState, setEnrollCountState] = useState(enrolledCount);
 
-  // 1️⃣ On mount, check if this user is enrolled
+  // 1️⃣ Check enrollment on mount
   useEffect(() => {
     if (!user) {
       setIsEnrolled(false);
       setLoadingEnroll(false);
       return;
     }
+
     setLoadingEnroll(true);
     supabase
       .from("enrollments")
-      .select("id", { head: true })
+      .select("id", { head: true, count: "exact" })
       .eq("course_id", courseId)
       .eq("user_id", user.id)
       .then(({ count }) => {
-        setIsEnrolled(count !== 0);
+        setIsEnrolled((count ?? 0) > 0);
         setLoadingEnroll(false);
       });
   }, [supabase, courseId, user]);
 
   // 2️⃣ Toggle enroll / unenroll
-  const onToggleEnroll = async () => {
+  const handleToggleEnroll = async () => {
     if (!user) {
       alert("Please sign in first");
       return;
     }
+
     setLoadingEnroll(true);
+
     if (isEnrolled) {
       await supabase
         .from("enrollments")
@@ -70,12 +73,15 @@ export default function ClientCoursePage({
         .eq("course_id", courseId)
         .eq("user_id", user.id);
       setIsEnrolled(false);
+      setEnrollCountState((c) => Math.max(0, c - 1));
     } else {
       await supabase
         .from("enrollments")
         .insert({ course_id: courseId, user_id: user.id });
       setIsEnrolled(true);
+      setEnrollCountState((c) => c + 1);
     }
+
     setLoadingEnroll(false);
   };
 
@@ -95,10 +101,10 @@ export default function ClientCoursePage({
         category={category}
         level={level}
         tag={tag}
-        enrolledCount={enrolledCount}
+        enrolledCount={enrollCountState}
         isEnrolled={isEnrolled}
         loadingEnroll={loadingEnroll}
-        onToggleEnroll={onToggleEnroll}
+        onToggleEnroll={handleToggleEnroll}
         firstLessonPath={firstLessonPath}
       />
 

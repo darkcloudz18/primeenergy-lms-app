@@ -3,52 +3,41 @@ import { redirect } from "next/navigation";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import Sidebar from "../Sidebar";
-import LessonContent from "../LessonContent";
+import LessonPageClient from "./LessonPageClient";
 import type { Module, Lesson, ModuleWithLessons } from "@/lib/types";
 
-interface PageProps {
-  params: {
-    courseId: string;
-    moduleId: string;
-    lessonId: string;
-  };
-}
-
-// You can force dynamic if you want real-time data each request:
 export const dynamic = "force-dynamic";
+
+interface PageProps {
+  params: { courseId: string; moduleId: string; lessonId: string };
+}
 
 export default async function LessonPage({ params }: PageProps) {
   const { courseId, moduleId, lessonId } = params;
 
-  // 1) Authenticate & redirect if not signed-in:
-  const supabase = createServerComponentClient({ cookies: () => cookies() });
+  // 1) Auth
+  const supabase = createServerComponentClient({ cookies });
   const {
     data: { user },
     error: authError,
   } = await supabase.auth.getUser();
+  if (authError || !user) redirect("/auth");
 
-  if (authError || !user) {
-    // Not signed in—redirect to login
-    redirect("/auth/login");
-  }
-
-  // 2) Fetch all modules for this course (so we can build the sidebar):
+  // 2) Modules
   const { data: modulesRaw, error: modulesError } = await supabaseAdmin
     .from("modules")
-    .select("id, title, ordering")
+    .select("id, title, ordering, course_id, created_at")
     .eq("course_id", courseId)
     .order("ordering", { ascending: true });
-
   if (modulesError || !modulesRaw) {
-    throw new Error("Failed to load modules: " + modulesError?.message);
+    throw new Error("Failed to load modules: " + modulesError.message);
   }
-  const modules: Module[] = modulesRaw as Module[];
-  const moduleIds = modules.map((m) => m.id);
+  const modules: Module[] = modulesRaw;
 
-  // 3) Fetch all lessons for those modules, in one query:
+  // 3) Lessons
+  const moduleIds = modules.map((m) => m.id);
   let lessonsByModule: Record<string, Lesson[]> = {};
-  if (moduleIds.length > 0) {
+  if (moduleIds.length) {
     const { data: lessonsRaw, error: lessonsError } = await supabaseAdmin
       .from("lessons")
       .select(
@@ -56,66 +45,81 @@ export default async function LessonPage({ params }: PageProps) {
       )
       .in("module_id", moduleIds)
       .order("ordering", { ascending: true });
-
     if (lessonsError || !lessonsRaw) {
-      throw new Error("Failed to load lessons: " + lessonsError?.message);
+      throw new Error("Failed to load lessons: " + lessonsError.message);
     }
-
-    // Initialize an object keyed by module id
-    lessonsByModule = moduleIds.reduce((acc, mId) => {
-      acc[mId] = [];
-      return acc;
-    }, {} as Record<string, Lesson[]>);
-
-    (lessonsRaw as Lesson[]).forEach((lsn) => {
-      if (lessonsByModule[lsn.module_id]) {
-        lessonsByModule[lsn.module_id].push(lsn);
-      }
-    });
+    lessonsByModule = moduleIds.reduce((acc, id) => ({ ...acc, [id]: [] }), {});
+    for (const l of lessonsRaw) {
+      lessonsByModule[l.module_id].push(l);
+    }
   }
 
-  // 4) Build modulesWithLessons array:
+  // 4) Build modulesWithLessons
   const modulesWithLessons: ModuleWithLessons[] = modules.map((m) => ({
     id: m.id,
     title: m.title,
     ordering: m.ordering,
     lessons: lessonsByModule[m.id] || [],
-    // If you have a quiz_id field on modules, you could spread it here:
-    // quiz_id: (m as any).quiz_id ?? undefined,
   }));
 
-  // 5) Fetch the **current lesson** by ID:
+  // 5) Current lesson
   const { data: lessonRow, error: lessonError } = await supabaseAdmin
     .from("lessons")
-    .select("id, title, content")
+    .select(
+      "id, module_id, title, content, type, ordering, image_url, created_at"
+    )
     .eq("id", lessonId)
     .single();
-
   if (lessonError || !lessonRow) {
-    throw new Error("Lesson not found: " + lessonError?.message);
+    throw new Error("Lesson not found: " + lessonError.message);
+  }
+  const lesson: Lesson = lessonRow;
+
+  // 6) Final quiz if any
+  let finalQuizPath: string | undefined;
+  const { data: fq, error: fqErr } = await supabaseAdmin
+    .from("quizzes")
+    .select("id")
+    .eq("course_id", courseId)
+    .is("module_id", null)
+    .single();
+  if (!fqErr && fq?.id) {
+    const { data: q1 } = await supabaseAdmin
+      .from("questions")
+      .select("id")
+      .eq("quiz_id", fq.id)
+      .limit(1);
+    if (q1 && q1.length) {
+      finalQuizPath = `/courses/${courseId}/final-quiz`;
+    }
   }
 
-  const lesson: Lesson = lessonRow as Lesson;
+  // 7) User progress
+  const { data: lcRows } = await supabase
+    .from("lesson_completions")
+    .select("lesson_id")
+    .eq("user_id", user.id);
+  const completedLessonIds = lcRows?.map((r) => r.lesson_id) || [];
 
-  // 6) Render the two-pane layout:
+  const { data: qaRows } = await supabase
+    .from("quiz_attempts")
+    .select("quiz_id")
+    .eq("user_id", user.id)
+    .eq("passed", true);
+  const passedQuizIds = qaRows?.map((r) => r.quiz_id) || [];
+
+  // 8) Render the client wrapper
   return (
-    <div className="flex h-screen">
-      {/* Left sidebar */}
-      <Sidebar
-        courseId={courseId}
-        currentModuleId={moduleId}
-        currentLessonId={lessonId}
-        modules={modulesWithLessons}
-      />
-
-      {/* Right pane: lesson content */}
-      <LessonContent
-        courseId={courseId}
-        moduleId={moduleId}
-        lessonId={lessonId}
-        lessonTitle={lesson.title}
-        lessonContent={lesson.content} // this is raw HTML (or markdown)
-      />
-    </div>
+    <LessonPageClient
+      courseId={courseId}
+      moduleId={moduleId}
+      lessonId={lessonId}
+      lessonTitle={lesson.title}
+      lessonContent={lesson.content}
+      modules={modulesWithLessons}
+      finalQuizPath={finalQuizPath}
+      initialCompleted={completedLessonIds}
+      initialPassed={passedQuizIds}
+    />
   );
 }

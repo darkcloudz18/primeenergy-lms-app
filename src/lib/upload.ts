@@ -1,20 +1,24 @@
 // src/lib/upload.ts
 export async function uploadImage(file: File): Promise<string> {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("bucket", "uploads");
+  const fd = new FormData();
+  fd.append("file", file);
 
-  // <-- updated path to match your route file
-  const res = await fetch("/api/courses/upload", {
+  const res = await fetch("/api/upload", {
     method: "POST",
-    body: form,
+    credentials: "include", // ✅ send auth cookie
+    body: fd, // don't set Content-Type manually
   });
 
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Upload failed");
+    // try json, else text
+    try {
+      const j = await res.json();
+      throw new Error(j.error || "Upload failed");
+    } catch {
+      throw new Error(await res.text());
+    }
   }
 
   const { url } = await res.json();
-  return url;
+  return url as string;
 }

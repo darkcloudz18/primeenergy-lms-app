@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
+import { useSupabaseClient, useSession } from "@supabase/auth-helpers-react";
 import type { ModuleWithLessons } from "@/lib/types";
 
 interface Props {
@@ -17,6 +17,9 @@ export default function CourseContent({
   modules,
   isEnrolled,
 }: Props) {
+  const supabase = useSupabaseClient();
+  const session = useSession();
+
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(
     new Set()
   );
@@ -24,39 +27,65 @@ export default function CourseContent({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadProgress() {
-      setLoading(true);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setLoading(false);
-        return;
-      }
+    if (!session?.user) {
+      setLoading(false);
+      return;
+    }
 
-      const { data: lc } = await supabase
+    const userId = session.user.id;
+
+    // load existing progress
+    (async () => {
+      setLoading(true);
+
+      const { data: lcRows } = await supabase
         .from("lesson_completions")
         .select("lesson_id")
-        .eq("user_id", user.id);
+        .eq("user_id", userId);
+      setCompletedLessons(new Set(lcRows?.map((r) => r.lesson_id) || []));
 
-      setCompletedLessons(new Set(lc?.map((r) => r.lesson_id) || []));
-
-      const { data: qa } = await supabase
+      const { data: qaRows } = await supabase
         .from("quiz_attempts")
         .select("quiz_id")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .eq("passed", true);
+      setPassedQuizzes(new Set(qaRows?.map((r) => r.quiz_id) || []));
 
-      setPassedQuizzes(new Set(qa?.map((r) => r.quiz_id) || []));
       setLoading(false);
-    }
-    loadProgress();
-  }, []);
+    })();
+
+    // subscribe to new completions
+    const channel = supabase
+      .channel(`lesson-completions-user-${userId}`, {
+        config: { broadcast: { self: true } },
+      })
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "lesson_completions",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const newId = (payload.new as { lesson_id: string }).lesson_id;
+          setCompletedLessons((prev) => {
+            const next = new Set(prev);
+            next.add(newId);
+            return next;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session, supabase]);
 
   function isModuleUnlocked(idx: number) {
     if (!isEnrolled) return false;
     if (idx === 0) return true;
-
     const prev = modules[idx - 1];
     if (prev.quiz_id && passedQuizzes.has(prev.quiz_id)) return true;
     if (prev.lessons.every((l) => completedLessons.has(l.id))) return true;
@@ -66,15 +95,15 @@ export default function CourseContent({
   if (!isEnrolled) {
     return (
       <div className="p-6 text-center text-gray-600">
-        <span className="inline-flex items-center">
-          🔒 Enroll in this course to unlock its lessons.
-        </span>
+        🔒 Enroll in this course to unlock its lessons.
       </div>
     );
   }
 
   if (loading) {
-    return <p className="p-6 text-center text-gray-600">Loading progress…</p>;
+    return (
+      <p className="p-6 text-center text-gray-600">Loading your progress…</p>
+    );
   }
 
   return (
@@ -84,7 +113,7 @@ export default function CourseContent({
         return (
           <div
             key={mod.id}
-            className={`border rounded-lg overflow-hidden shadow-sm ${
+            className={`border rounded-lg shadow-sm ${
               unlocked ? "" : "opacity-50"
             }`}
           >
@@ -128,15 +157,6 @@ export default function CourseContent({
           </div>
         );
       })}
-
-      <div className="mt-8 text-center">
-        <Link
-          href={`/courses/${courseId}/final-quiz`}
-          className="inline-block bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700"
-        >
-          Take Final Quiz
-        </Link>
-      </div>
     </section>
   );
 }

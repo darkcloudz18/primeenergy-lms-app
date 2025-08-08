@@ -148,23 +148,28 @@ export default function Header() {
   }, [session, supabase]);
 
   const isAdmin = role === "admin" || role === "super admin";
+  const isTutor = role === "tutor";
   const isStudent = role === "student";
+
   const dashboardHref = isAdmin
     ? "/admin"
+    : isTutor
+    ? "/dashboard/tutor"
     : isStudent
-    ? "/dashboard"
+    ? "/dashboard/student"
     : session
-    ? "/dashboard"
+    ? "/dashboard/student"
     : "/auth";
+
   const dashboardLabel = isAdmin
     ? "Admin Dashboard"
-    : isStudent
-    ? "Student Dashboard"
-    : "Dashboard";
+    : isTutor
+    ? "Tutor Dashboard"
+    : "My Dashboard";
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    router.push("/auth");
+    router.push("/");
   };
 
   const navItems: { label: string; href: string }[] = [

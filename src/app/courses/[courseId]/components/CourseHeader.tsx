@@ -1,4 +1,3 @@
-// src/app/courses/[courseId]/components/CourseHeader.tsx
 "use client";
 
 import Image from "next/image";
@@ -30,7 +29,6 @@ interface Props {
 }
 
 export default function CourseHeader({
-  //courseId,
   title,
   description,
   imageUrl,
@@ -38,7 +36,6 @@ export default function CourseHeader({
   category,
   level,
   tag,
-
   isEnrolled,
   loadingEnroll,
   onToggleEnroll,
@@ -61,7 +58,7 @@ export default function CourseHeader({
 
       {/* Right‐side card */}
       <aside className="space-y-4">
-        {!isEnrolled && (
+        {!isEnrolled ? (
           <button
             onClick={onToggleEnroll}
             disabled={loadingEnroll}
@@ -69,24 +66,24 @@ export default function CourseHeader({
           >
             {loadingEnroll ? "…" : "Enroll now"}
           </button>
-        )}
-
-        {isEnrolled && firstLessonPath && (
-          <>
-            <Link
-              href={firstLessonPath}
-              className="text-center block w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-            >
-              Start Learning
-            </Link>
-            <button
-              onClick={onToggleEnroll}
-              disabled={loadingEnroll}
-              className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded disabled:opacity-50"
-            >
-              {loadingEnroll ? "…" : "Unenroll"}
-            </button>
-          </>
+        ) : (
+          firstLessonPath && (
+            <>
+              <Link
+                href={firstLessonPath}
+                className="text-center block w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+              >
+                Start Learning
+              </Link>
+              <button
+                onClick={onToggleEnroll}
+                disabled={loadingEnroll}
+                className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded disabled:opacity-50"
+              >
+                {loadingEnroll ? "…" : "Unenroll"}
+              </button>
+            </>
+          )
         )}
 
         <ul className="bg-gray-50 border rounded divide-y">

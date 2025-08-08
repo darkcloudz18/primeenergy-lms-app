@@ -1,4 +1,4 @@
-// src/app/courses/[courseId]/modules/[moduleId]/lessons/Sidebar.tsx
+// src/app/courses/[courseId]/modules/[moduleId]/lessons/[lessonId]/components/Sidebar.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -11,6 +11,9 @@ interface SidebarProps {
   currentModuleId: string;
   currentLessonId: string;
   modules: ModuleWithLessons[];
+  finalQuizPath?: string;
+  completedLessons: string[];
+  passedQuizzes: string[];
 }
 
 export default function Sidebar({
@@ -18,16 +21,18 @@ export default function Sidebar({
   currentModuleId,
   currentLessonId,
   modules,
+  finalQuizPath,
+  completedLessons,
+  passedQuizzes,
 }: SidebarProps) {
   const supabase = useSupabaseClient();
   const session = useSession();
   const user = session?.user;
 
-  const [completedLessons, setCompletedLessons] = useState<Set<string>>(
-    new Set()
-  );
-  const [passedQuizzes, setPassedQuizzes] = useState<Set<string>>(new Set());
+  const [lc, setLc] = useState(new Set(completedLessons));
+  const [pq, setPq] = useState(new Set(passedQuizzes));
 
+  // If you still want real‐time fetch you can re‐run here…
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -35,59 +40,54 @@ export default function Sidebar({
         .from("lesson_completions")
         .select("lesson_id")
         .eq("user_id", user.id);
-      if (lcRows) setCompletedLessons(new Set(lcRows.map((r) => r.lesson_id)));
+      setLc(new Set(lcRows?.map((r) => r.lesson_id) || []));
 
       const { data: qaRows } = await supabase
         .from("quiz_attempts")
         .select("quiz_id")
         .eq("user_id", user.id)
         .eq("passed", true);
-      if (qaRows) setPassedQuizzes(new Set(qaRows.map((r) => r.quiz_id)));
+      setPq(new Set(qaRows?.map((r) => r.quiz_id) || []));
     })();
   }, [supabase, user]);
 
   const isModuleUnlocked = (idx: number) => {
     if (idx === 0) return true;
     const prev = modules[idx - 1];
-    if (prev.quiz_id && passedQuizzes.has(prev.quiz_id)) return true;
-    return prev.lessons.every((l) => completedLessons.has(l.id));
+    if (prev.quiz_id && pq.has(prev.quiz_id)) return true;
+    return prev.lessons.every((l) => lc.has(l.id));
   };
 
   return (
-    <aside className="w-64 border-r bg-white h-screen overflow-auto">
-      <div className="p-4 border-b">
-        <h2 className="font-semibold">Course Content</h2>
-      </div>
-
+    <aside className="w-64 flex-shrink-0 border-r bg-white h-screen overflow-auto p-4 sticky top-0">
+      <h2 className="font-semibold mb-4">Course Content</h2>
       {modules.map((mod, idx) => {
         const unlocked = isModuleUnlocked(idx);
         const isActiveModule = mod.id === currentModuleId;
 
         return (
-          <div key={mod.id} className="divide-y">
-            <div className="px-4 py-2 flex justify-between bg-gray-50">
+          <div key={mod.id} className="mb-6">
+            <div className="flex justify-between items-center bg-gray-50 px-3 py-1 rounded">
               <span className="text-sm font-medium">
                 Module {mod.ordering}: {mod.title}
               </span>
-              <span
-                className={`text-xs ${
-                  unlocked ? "text-green-600" : "text-gray-400"
-                }`}
-              >
+              <span className={unlocked ? "text-green-600" : "text-gray-400"}>
                 {unlocked ? "🔓" : "🔒"}
               </span>
             </div>
-
-            {/* lessons list */}
-            <ul className={!unlocked ? "opacity-50 pointer-events-none" : ""}>
+            <ul
+              className={`mt-2 ${
+                !unlocked ? "opacity-50 pointer-events-none" : ""
+              }`}
+            >
               {mod.lessons.map((lesson) => {
-                const done = completedLessons.has(lesson.id);
+                const done = lc.has(lesson.id);
                 const isActiveLesson =
                   isActiveModule && lesson.id === currentLessonId;
                 return (
                   <li
                     key={lesson.id}
-                    className={`px-4 py-2 flex justify-between items-center hover:bg-gray-100 ${
+                    className={`flex justify-between items-center px-3 py-1 rounded hover:bg-gray-100 ${
                       isActiveLesson ? "bg-green-50" : ""
                     }`}
                   >
@@ -112,11 +112,10 @@ export default function Sidebar({
                 );
               })}
 
-              {/* only show “Module Quiz” if this module has at least one lesson */}
-              {mod.lessons.length > 0 && (
-                <li className="px-4 py-2">
+              {mod.quiz_id && (
+                <li className="px-3 py-1 mt-1">
                   <Link
-                    href={`/courses/${courseId}/modules/${mod.id}/lessons/${mod.lessons[0].id}`}
+                    href={`/courses/${courseId}/modules/${mod.id}/quiz`}
                     className="text-sm text-blue-600 hover:underline"
                   >
                     ▶ Module Quiz
@@ -128,13 +127,10 @@ export default function Sidebar({
         );
       })}
 
-      {/* only show Final Quiz if there is at least one module with lessons */}
-      {modules.length > 0 && modules.some((m) => m.lessons.length > 0) && (
-        <div className="px-4 py-3 border-t">
+      {finalQuizPath && (
+        <div className="mt-4 pt-4 border-t">
           <Link
-            href={`/courses/${courseId}/modules/${
-              modules[modules.length - 1].id
-            }/lessons/${modules[modules.length - 1].lessons[0].id}`}
+            href={finalQuizPath}
             className="text-sm text-blue-600 hover:underline"
           >
             ▶ Final Quiz

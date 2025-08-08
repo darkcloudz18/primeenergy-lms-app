@@ -6,6 +6,19 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { uploadImage } from "@/lib/upload";
 
+type ApiOk = { id: string };
+type ApiErr = { error: string };
+
+function isObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+function isApiOk(v: unknown): v is ApiOk {
+  return isObject(v) && typeof v.id === "string";
+}
+function isApiErr(v: unknown): v is ApiErr {
+  return isObject(v) && typeof v.error === "string";
+}
+
 export default function NewCoursePage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -24,7 +37,7 @@ export default function NewCoursePage() {
     try {
       const url = await uploadImage(file);
       setImageUrl(url);
-    } catch (err: unknown) {
+    } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       alert("Upload failed: " + msg);
     } finally {
@@ -40,16 +53,28 @@ export default function NewCoursePage() {
     const res = await fetch("/api/courses", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include", // send auth cookie
       body: JSON.stringify(payload),
     });
-    const json = await res.json();
+
+    // Read body once as text, then try JSON
+    const text = await res.text();
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = undefined;
+    }
+
     setLoading(false);
 
-    if (res.ok) {
+    if (res.ok && isApiOk(json)) {
       router.push(`/courses/${json.id}`);
-    } else {
-      alert("Error creating course: " + json.error);
+      return;
     }
+
+    const msg = isApiErr(json) ? json.error : text || "Unknown error";
+    alert("Error creating course: " + msg);
   }
 
   return (
