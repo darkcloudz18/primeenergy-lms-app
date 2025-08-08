@@ -1,30 +1,34 @@
-// app/dashboard/page.tsx
+// src/app/dashboard/page.tsx
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase-server";
 
-export default async function DashboardIndex() {
+export default async function DashboardRedirect() {
   const supabase = createServerClient();
 
-  // 1) Require auth
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // who is logged in?
+  const { data: userRes } = await supabase.auth.getUser();
+  const user = userRes?.user;
   if (!user) {
-    redirect("/login"); // or wherever your sign-in page lives
+    redirect("/auth/login"); // not signed in
   }
 
-  // 2) Check profile role
+  // get their role from profiles
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single();
 
-  // 3) Send them to the right dashboard
-  if (profile?.role === "tutor" || profile?.role === "admin") {
+  const role = profile?.role?.toLowerCase();
+
+  // send to the right dashboard
+  if (role === "admin") {
+    // change this to your preferred admin landing page
+    redirect("/admin/dashboard");
+  }
+  if (role === "tutor") {
     redirect("/dashboard/tutor");
   }
-
-  // default for students / unknown
+  // default → student
   redirect("/dashboard/student");
 }

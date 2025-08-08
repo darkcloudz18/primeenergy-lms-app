@@ -1,7 +1,7 @@
 // src/components/Header.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -44,17 +44,15 @@ const normalizeRole = (raw?: string | null): Role => {
   return null;
 };
 
-function isProfileRow(x: unknown): x is ProfileRow {
-  return (
-    typeof x === "object" &&
-    x !== null &&
-    ("role" in x || "first_name" in x || "last_name" in x)
-  );
-}
+const isProfileRow = (x: unknown): x is ProfileRow =>
+  typeof x === "object" &&
+  x !== null &&
+  ("role" in (x as object) ||
+    "first_name" in (x as object) ||
+    "last_name" in (x as object));
 
-function isUserRow(x: unknown): x is UserRow {
-  return typeof x === "object" && x !== null && "role" in x;
-}
+const isUserRow = (x: unknown): x is UserRow =>
+  typeof x === "object" && x !== null && "role" in (x as object);
 
 export default function Header() {
   const { session } = useSessionContext();
@@ -67,6 +65,7 @@ export default function Header() {
   const [loadingRole, setLoadingRole] = useState<boolean>(true);
   const [isOpen, setIsOpen] = useState(false);
 
+  // Fetch profile/role + nice display name
   useEffect(() => {
     const fetchUserInfo = async () => {
       if (!session?.user) {
@@ -82,6 +81,7 @@ export default function Header() {
       let resolvedRole: Role | null = null;
       let name: string | null = null;
 
+      // 1) profiles table first
       const { data: profileData, error: profileErr } = await supabase
         .from("profiles")
         .select("role, first_name, last_name")
@@ -94,17 +94,16 @@ export default function Header() {
         }
         const first =
           typeof profileData.first_name === "string"
-            ? profileData.first_name
+            ? profileData.first_name.trim()
             : "";
         const last =
           typeof profileData.last_name === "string"
-            ? profileData.last_name
+            ? profileData.last_name.trim()
             : "";
-        if (first || last) {
-          name = [first, last].filter(Boolean).join(" ");
-        }
+        if (first || last) name = [first, last].filter(Boolean).join(" ");
       }
 
+      // 2) fallback: custom users table role
       if (!resolvedRole) {
         const { data: userData, error: userErr } = await supabase
           .from("users")
@@ -115,11 +114,11 @@ export default function Header() {
           !userErr &&
           isUserRow(userData) &&
           typeof userData.role === "string"
-        ) {
+        )
           resolvedRole = normalizeRole(userData.role);
-        }
       }
 
+      // 3) fallback: user_metadata.role
       if (!resolvedRole) {
         const metadata = session.user.user_metadata as SupabaseUserMetadata;
         const rawMetaRole =
@@ -127,6 +126,7 @@ export default function Header() {
         resolvedRole = normalizeRole(rawMetaRole);
       }
 
+      // Display name fallback chain
       if (!name) {
         const metadata = session.user.user_metadata as SupabaseUserMetadata;
         const metaName =
@@ -148,24 +148,12 @@ export default function Header() {
   }, [session, supabase]);
 
   const isAdmin = role === "admin" || role === "super admin";
-  const isTutor = role === "tutor";
-  const isStudent = role === "student";
 
-  const dashboardHref = isAdmin
-    ? "/admin"
-    : isTutor
-    ? "/dashboard/tutor"
-    : isStudent
-    ? "/dashboard/student"
-    : session
-    ? "/dashboard/student"
-    : "/auth";
-
-  const dashboardLabel = isAdmin
-    ? "Admin Dashboard"
-    : isTutor
-    ? "Tutor Dashboard"
-    : "My Dashboard";
+  // Single entry — let /dashboard redirect by role
+  const dashboardHref = useMemo(
+    () => (session ? "/dashboard" : "/auth/login"),
+    [session]
+  );
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -177,6 +165,9 @@ export default function Header() {
     { label: "About Us", href: "/about" },
     { label: "Courses", href: "/courses" },
   ];
+
+  const firstName =
+    displayName?.split(" ").filter(Boolean)[0] ?? (session ? "User" : null);
 
   return (
     <header className="bg-white shadow-md sticky top-0 z-50">
@@ -210,10 +201,11 @@ export default function Header() {
                   href={dashboardHref}
                   className={clsx(
                     "text-gray-700 hover:text-green-600 hover:underline",
-                    pathname === dashboardHref && "text-green-600 underline"
+                    pathname?.startsWith("/dashboard") &&
+                      "text-green-600 underline"
                   )}
                 >
-                  {dashboardLabel}
+                  My Dashboard
                 </Link>
               )}
             </>
@@ -242,9 +234,9 @@ export default function Header() {
             </>
           )}
 
-          {session && !loadingRole && displayName && (
+          {session && !loadingRole && firstName && (
             <span className="text-base lg:text-lg text-gray-700 ml-2">
-              Hi, {displayName.split(" ")[0]}
+              Hi, {firstName}
             </span>
           )}
 
@@ -288,9 +280,9 @@ export default function Header() {
       {/* Mobile menu */}
       {isOpen && (
         <div className="lg:hidden border-t bg-white px-4 py-3 space-y-2">
-          {session && !loadingRole && displayName && (
+          {session && !loadingRole && firstName && (
             <div className="pb-2 border-b text-base font-medium">
-              Hi, {displayName.split(" ")[0]}
+              Hi, {firstName}
             </div>
           )}
 
@@ -319,11 +311,11 @@ export default function Header() {
                   href={dashboardHref}
                   className={clsx(
                     "block text-lg font-medium hover:underline",
-                    pathname === dashboardHref && "underline"
+                    pathname?.startsWith("/dashboard") && "underline"
                   )}
                   onClick={() => setIsOpen(false)}
                 >
-                  {dashboardLabel}
+                  My Dashboard
                 </Link>
               )}
             </>
