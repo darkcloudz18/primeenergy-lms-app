@@ -61,7 +61,7 @@ export default function TutorLayout({
           </Link>
 
           <Link
-            href="/dashboard/tutor/enrolled-students"
+            href="/dashboard/tutor/students"
             className="group flex items-center px-3 py-2 rounded hover:bg-gray-100"
           >
             <UsersIcon className="h-5 w-5 mr-3 text-gray-500 group-hover:text-green-600" />

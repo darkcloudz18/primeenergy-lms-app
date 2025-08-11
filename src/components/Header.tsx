@@ -1,7 +1,7 @@
 // src/components/Header.tsx
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -65,13 +65,17 @@ export default function Header() {
   const [loadingRole, setLoadingRole] = useState<boolean>(true);
   const [isOpen, setIsOpen] = useState(false);
 
-  // Fetch profile/role + nice display name
+  // Fetch role + name
   useEffect(() => {
-    const fetchUserInfo = async () => {
+    let cancelled = false;
+
+    const run = async () => {
       if (!session?.user) {
-        setRole(null);
-        setDisplayName(null);
-        setLoadingRole(false);
+        if (!cancelled) {
+          setRole(null);
+          setDisplayName(null);
+          setLoadingRole(false);
+        }
         return;
       }
 
@@ -81,7 +85,7 @@ export default function Header() {
       let resolvedRole: Role | null = null;
       let name: string | null = null;
 
-      // 1) profiles table first
+      // 1) profiles
       const { data: profileData, error: profileErr } = await supabase
         .from("profiles")
         .select("role, first_name, last_name")
@@ -94,31 +98,35 @@ export default function Header() {
         }
         const first =
           typeof profileData.first_name === "string"
-            ? profileData.first_name.trim()
+            ? profileData.first_name
             : "";
         const last =
           typeof profileData.last_name === "string"
-            ? profileData.last_name.trim()
+            ? profileData.last_name
             : "";
-        if (first || last) name = [first, last].filter(Boolean).join(" ");
+        if (first || last) {
+          name = [first, last].filter(Boolean).join(" ");
+        }
       }
 
-      // 2) fallback: custom users table role
+      // 2) fallback: users table (if you maintain a role there)
       if (!resolvedRole) {
         const { data: userData, error: userErr } = await supabase
           .from("users")
           .select("role")
           .eq("id", userId)
           .maybeSingle();
+
         if (
           !userErr &&
           isUserRow(userData) &&
           typeof userData.role === "string"
-        )
+        ) {
           resolvedRole = normalizeRole(userData.role);
+        }
       }
 
-      // 3) fallback: user_metadata.role
+      // 3) fallback: auth user_metadata
       if (!resolvedRole) {
         const metadata = session.user.user_metadata as SupabaseUserMetadata;
         const rawMetaRole =
@@ -126,7 +134,7 @@ export default function Header() {
         resolvedRole = normalizeRole(rawMetaRole);
       }
 
-      // Display name fallback chain
+      // Name fallback
       if (!name) {
         const metadata = session.user.user_metadata as SupabaseUserMetadata;
         const metaName =
@@ -139,25 +147,46 @@ export default function Header() {
         }
       }
 
-      setRole(resolvedRole);
-      setDisplayName(name);
-      setLoadingRole(false);
+      if (!cancelled) {
+        setRole(resolvedRole);
+        setDisplayName(name);
+        setLoadingRole(false);
+      }
     };
 
-    fetchUserInfo();
+    run();
+    return () => {
+      cancelled = true;
+    };
   }, [session, supabase]);
 
   const isAdmin = role === "admin" || role === "super admin";
+  const isTutor = role === "tutor";
+  const isStudent = role === "student";
 
-  // Single entry — let /dashboard redirect by role
-  const dashboardHref = useMemo(
-    () => (session ? "/dashboard" : "/auth/login"),
-    [session]
-  );
+  // Route to the correct dashboard
+  const dashboardHref = useMemo(() => {
+    if (isAdmin) return "/admin";
+    if (isTutor) return "/dashboard/tutor";
+    if (isStudent) return "/dashboard/student";
+    // signed in but no explicit role → student dashboard by default
+    return session ? "/dashboard/student" : "/auth";
+  }, [isAdmin, isTutor, isStudent, session]);
+
+  const dashboardLabel = isAdmin
+    ? "Admin Dashboard"
+    : isTutor
+    ? "Tutor Dashboard"
+    : "My Dashboard";
+
+  const firstName = useMemo(() => {
+    if (!displayName) return null;
+    return displayName.split(" ")[0] || displayName;
+  }, [displayName]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    router.push("/");
+    router.push("/auth/login");
   };
 
   const navItems: { label: string; href: string }[] = [
@@ -166,15 +195,17 @@ export default function Header() {
     { label: "Courses", href: "/courses" },
   ];
 
-  const firstName =
-    displayName?.split(" ").filter(Boolean)[0] ?? (session ? "User" : null);
-
   return (
     <header className="bg-white shadow-md sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-4">
         {/* Logo */}
         <Link href="/" className="flex items-center space-x-2">
-          <Image src="/logo.png" alt="Logo" width={180} height={45} />
+          <Image
+            src="/logo.png"
+            alt="Prime University"
+            width={180}
+            height={45}
+          />
         </Link>
 
         {/* Desktop Nav */}
@@ -192,25 +223,23 @@ export default function Header() {
             </Link>
           ))}
 
-          {session && (
-            <>
-              {loadingRole ? (
-                <div className="text-gray-700">Loading...</div>
-              ) : (
-                <Link
-                  href={dashboardHref}
-                  className={clsx(
-                    "text-gray-700 hover:text-green-600 hover:underline",
-                    pathname?.startsWith("/dashboard") &&
-                      "text-green-600 underline"
-                  )}
-                >
-                  My Dashboard
-                </Link>
-              )}
-            </>
-          )}
+          {/* Dashboard link (role-aware) */}
+          {session &&
+            (loadingRole ? (
+              <span className="text-gray-700">Loading…</span>
+            ) : (
+              <Link
+                href={dashboardHref}
+                className={clsx(
+                  "text-gray-700 hover:text-green-600 hover:underline",
+                  pathname === dashboardHref && "text-green-600 underline"
+                )}
+              >
+                {dashboardLabel}
+              </Link>
+            ))}
 
+          {/* Quick admin links (optional)
           {isAdmin && !loadingRole && (
             <>
               <Link
@@ -232,14 +261,16 @@ export default function Header() {
                 Users
               </Link>
             </>
-          )}
+          )} */}
 
+          {/* Greeting */}
           {session && !loadingRole && firstName && (
             <span className="text-base lg:text-lg text-gray-700 ml-2">
               Hi, {firstName}
             </span>
           )}
 
+          {/* Auth buttons */}
           {!session ? (
             <>
               <button
@@ -300,28 +331,25 @@ export default function Header() {
             </Link>
           ))}
 
-          {session && (
-            <>
-              {loadingRole ? (
-                <div className="block text-lg font-medium text-gray-700">
-                  Loading...
-                </div>
-              ) : (
-                <Link
-                  href={dashboardHref}
-                  className={clsx(
-                    "block text-lg font-medium hover:underline",
-                    pathname?.startsWith("/dashboard") && "underline"
-                  )}
-                  onClick={() => setIsOpen(false)}
-                >
-                  My Dashboard
-                </Link>
-              )}
-            </>
-          )}
+          {session &&
+            (loadingRole ? (
+              <div className="block text-lg font-medium text-gray-700">
+                Loading…
+              </div>
+            ) : (
+              <Link
+                href={dashboardHref}
+                className={clsx(
+                  "block text-lg font-medium hover:underline",
+                  pathname === dashboardHref && "underline"
+                )}
+                onClick={() => setIsOpen(false)}
+              >
+                {dashboardLabel}
+              </Link>
+            ))}
 
-          {isAdmin && !loadingRole && (
+          {/* {isAdmin && !loadingRole && (
             <>
               <Link
                 href="/admin/courses"
@@ -344,7 +372,7 @@ export default function Header() {
                 Users
               </Link>
             </>
-          )}
+          )} */}
 
           {!session ? (
             <>

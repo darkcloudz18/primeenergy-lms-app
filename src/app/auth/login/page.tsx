@@ -22,7 +22,7 @@ export default function LoginPage() {
     if (session) {
       const role = session.user.user_metadata.role as string;
       if (role === "admin") {
-        router.replace("/admin");
+        router.replace("/admin/shre");
       } else if (role === "tutor") {
         router.replace("/dashboard/tutor");
       } else {
