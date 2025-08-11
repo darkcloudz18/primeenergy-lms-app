@@ -1,42 +1,57 @@
-// src/app/api/admin/unarchive-course/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
+import { createServerClient } from "@/lib/supabase-server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-export async function POST(req: NextRequest) {
-  const supabase = createRouteHandlerClient({ cookies });
-  const { courseId } = await req.json();
+function isAdminRole(role: string | null | undefined) {
+  const r = (role ?? "").toLowerCase().trim();
+  return r === "admin" || r === "super admin";
+}
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user)
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+export async function POST(req: Request) {
+  try {
+    // 1) Auth + role check
+    const sb = createServerClient();
+    const {
+      data: { user },
+      error: userErr,
+    } = await sb.auth.getUser();
+    if (userErr || !user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
 
-  const { data: prof } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
+    const { data: prof, error: profErr } = await sb
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
 
-  const role = (prof?.role || "").toLowerCase();
-  if (!["admin", "super admin"].includes(role)) {
-    const { data: course } = await supabase
-      .from("courses")
-      .select("instructor_id")
-      .eq("id", courseId)
-      .maybeSingle();
-    if (!course || course.instructor_id !== user.id) {
+    if (profErr || !isAdminRole(prof?.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    // 2) Parse body
+    const { courseId } = (await req.json()) as { courseId?: string };
+    if (!courseId) {
+      return NextResponse.json({ error: "Missing courseId" }, { status: 400 });
+    }
+
+    // 3) Unarchive
+    const { error: updErr } = await supabaseAdmin
+      .from("courses")
+      .update({ archived: false })
+      .eq("id", courseId);
+
+    if (updErr) {
+      return NextResponse.json({ error: updErr.message }, { status: 500 });
+    }
+
+    // 4) Revalidate admin list
+    revalidatePath("/admin/courses");
+
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-
-  const { error } = await supabase
-    .from("courses")
-    .update({ archived: false })
-    .eq("id", courseId);
-
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
 }

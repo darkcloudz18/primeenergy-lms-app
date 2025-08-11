@@ -1,4 +1,3 @@
-// src/components/admin/CourseCard.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -6,110 +5,73 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Course } from "@/lib/types";
 
-interface CourseCardProps {
+interface Props {
   course: Course;
-  onDeleted?: (id: string) => void;
-  onArchivedChange?: (id: string, archived: boolean) => void;
+  onArchived?: (archived: boolean) => void;
+  onDeleted?: () => void;
 }
 
-type ApiResult = { error?: string };
+export default function CourseCard({ course, onArchived, onDeleted }: Props) {
+  const [loading, setLoading] = useState(false);
+  const [archived, setArchived] = useState<boolean>(!!course.archived);
 
-export default function CourseCard({
-  course,
-  onDeleted,
-  onArchivedChange,
-}: CourseCardProps) {
-  const [loadingAction, setLoadingAction] = useState<
-    "archive" | "unarchive" | "delete" | null
-  >(null);
-  const [archived, setArchived] = useState<boolean>(Boolean(course.archived));
-
-  const call = async (url: string, body: unknown): Promise<ApiResult> => {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
-    const json = (await res.json().catch(() => ({}))) as ApiResult;
-    if (!res.ok || json.error) {
-      throw new Error(json.error || `Request failed: ${res.status}`);
+  const post = async (url: string, body: unknown) => {
+    setLoading(true);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok || json?.error)
+        throw new Error(json?.error || "Request failed");
+      return json as { ok: true };
+    } finally {
+      setLoading(false);
     }
-    return json;
   };
 
   const handleArchive = async () => {
-    try {
-      setLoadingAction("archive");
-      await call("/api/admin/archive-course", { courseId: course.id });
-      setArchived(true);
-      if (onArchivedChange) onArchivedChange(course.id, true);
-    } catch (e) {
-      alert((e as Error).message);
-    } finally {
-      setLoadingAction(null);
-    }
+    await post("/api/admin/archive-course", { courseId: course.id });
+    setArchived(true);
+    onArchived?.(true);
   };
 
   const handleUnarchive = async () => {
-    try {
-      setLoadingAction("unarchive");
-      await call("/api/admin/unarchive-course", { courseId: course.id });
-      setArchived(false);
-      if (onArchivedChange) onArchivedChange(course.id, false);
-    } catch (e) {
-      alert((e as Error).message);
-    } finally {
-      setLoadingAction(null);
-    }
+    await post("/api/admin/unarchive-course", { courseId: course.id });
+    setArchived(false);
+    onArchived?.(false);
   };
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this course?")) return;
-    try {
-      setLoadingAction("delete");
-      await call("/api/admin/delete-course", { courseId: course.id });
-      if (onDeleted) onDeleted(course.id);
-      else window.location.reload();
-    } catch (e) {
-      alert((e as Error).message);
-    } finally {
-      setLoadingAction(null);
-    }
+    await post("/api/admin/delete-course", { courseId: course.id });
+    onDeleted?.();
   };
-
-  const isBusy = Boolean(loadingAction);
-  const created = new Date(course.created_at);
 
   return (
     <div
-      className={`bg-white rounded-lg shadow p-4 flex flex-col ${
-        archived ? "opacity-60" : ""
-      }`}
+      className={
+        "bg-white rounded-lg shadow p-4 flex flex-col " +
+        (archived ? "opacity-50" : "")
+      }
     >
       {course.image_url && (
-        <div className="relative w-full h-40 mb-4 rounded overflow-hidden bg-gray-100">
+        <div className="relative w-full h-40 mb-4 rounded overflow-hidden">
           <Image
             src={course.image_url}
             alt={course.title}
             fill
             className="object-cover"
-            sizes="(max-width: 768px) 100vw, 33vw"
           />
         </div>
       )}
 
-      <div className="flex items-start justify-between gap-3">
-        <h2 className="text-lg font-semibold">{course.title}</h2>
-        {archived && (
-          <span className="inline-flex items-center text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-800">
-            Archived
-          </span>
-        )}
-      </div>
-
+      <h2 className="text-lg font-semibold">{course.title}</h2>
       <p className="text-sm text-gray-500 mb-4">
-        Created on {created.toLocaleDateString()}
+        Created on {new Date(course.created_at).toLocaleDateString()}
       </p>
 
       <div className="mt-auto flex flex-wrap gap-2">
@@ -117,8 +79,8 @@ export default function CourseCard({
           <>
             <Link href={`/admin/courses/edit/${course.id}`}>
               <button
-                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                disabled={isBusy}
+                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                disabled={loading}
               >
                 Edit
               </button>
@@ -126,28 +88,28 @@ export default function CourseCard({
 
             <button
               onClick={handleArchive}
-              disabled={isBusy}
+              disabled={loading}
               className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 disabled:opacity-50"
             >
-              {loadingAction === "archive" ? "…" : "Archive"}
+              {loading ? "…" : "Archive"}
             </button>
           </>
         ) : (
           <button
             onClick={handleUnarchive}
-            disabled={isBusy}
+            disabled={loading}
             className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
           >
-            {loadingAction === "unarchive" ? "…" : "Unarchive"}
+            {loading ? "…" : "Unarchive"}
           </button>
         )}
 
         <button
           onClick={handleDelete}
-          disabled={isBusy}
+          disabled={loading}
           className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
         >
-          {loadingAction === "delete" ? "…" : "Delete"}
+          Delete
         </button>
       </div>
     </div>

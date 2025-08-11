@@ -1,12 +1,6 @@
 // src/app/admin/dashboard/page.tsx
-export default function DashboardPage() {
-  // … the “Profile Completion” + stats grid …
-  return (
-    <>
-      {/* Profile Completion */}
-      {/* … */}
-      {/* Dashboard Stats */}
-      {/* … */}
-    </>
-  );
+import { redirect } from "next/navigation";
+
+export default function AdminDashboardRedirect() {
+  redirect("/admin");
 }
