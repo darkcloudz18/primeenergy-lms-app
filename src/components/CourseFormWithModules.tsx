@@ -13,7 +13,7 @@ import type { LessonInput } from "@/lib/types";
 // Each lesson in the form:
 export interface LessonFormData {
   title: string;
-  content: string;
+  content: string; // HTML from RichTextEditor
   type: "article" | "video" | "image";
   ordering: number;
   imageUrl: string;
@@ -31,7 +31,7 @@ export interface ModuleFormData {
 export interface CourseFormWithModulesProps {
   onSubmit: (data: {
     title: string;
-    description: string;
+    description: string; // HTML from RichTextEditor
     coverFile: File | null;
     category: string;
     level: string;
@@ -50,7 +50,7 @@ export default function CourseFormWithModules({
   // ─── Course‐Level State ─────────────────────────────────────────────────────
   //
   const [title, setTitle] = useState<string>("");
-  const [description, setDescription] = useState<string>("");
+  const [description, setDescription] = useState<string>(""); // HTML via RTE
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [category, setCategory] = useState<string>("");
   const [level, setLevel] = useState<string>("");
@@ -110,7 +110,7 @@ export default function CourseFormWithModules({
             ...mod.lessons,
             {
               title: "",
-              content: "",
+              content: "", // start empty; filled by RichTextEditor
               type: "article",
               ordering: nextOrdering,
               imageUrl: "",
@@ -205,7 +205,7 @@ export default function CourseFormWithModules({
     e.preventDefault();
     await onSubmit({
       title,
-      description,
+      description, // HTML from RichTextEditor
       coverFile,
       category,
       level,
@@ -238,16 +238,14 @@ export default function CourseFormWithModules({
           />
         </div>
 
-        {/* Description */}
+        {/* Description (Rich Text) */}
         <div>
           <label className="block text-sm font-medium text-gray-700">
             Description
           </label>
-          <textarea
+          <RichTextEditor
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="mt-1 w-full border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-green-200"
+            onChange={(html) => setDescription(html)}
           />
         </div>
 

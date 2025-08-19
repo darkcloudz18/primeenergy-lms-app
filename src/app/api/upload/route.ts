@@ -1,50 +1,54 @@
 // src/app/api/upload/route.ts
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin"; // <-- service-role client
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  // 1) Parse multipart/form-data
-  const formData = await request.formData();
-  const file = formData.get("file") as Blob | null;
-  if (!file) {
-    return NextResponse.json({ error: "No file provided" }, { status: 400 });
+  try {
+    const formData = await request.formData();
+    const blob = formData.get("file") as Blob | null;
+
+    if (!blob) {
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+
+    const file = blob as File;
+    const bucket = "uploads"; // make sure this bucket exists
+    const filename = `${Date.now()}_${file.name}`; // you can prefix with user id if you want
+
+    // Upload with service role (bypasses Storage RLS)
+    const { data: uploadData, error: uploadErr } = await supabaseAdmin.storage
+      .from(bucket)
+      .upload(filename, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || "application/octet-stream",
+      });
+
+    if (uploadErr || !uploadData) {
+      return NextResponse.json(
+        { error: uploadErr?.message || "Upload failed" },
+        { status: 500 }
+      );
+    }
+
+    // Get a public URL (works if bucket is public; if not, use signed URL instead)
+    const { data: publicData } = supabaseAdmin.storage
+      .from(bucket)
+      .getPublicUrl(uploadData.path);
+
+    const publicUrl = publicData?.publicUrl;
+    if (!publicUrl) {
+      return NextResponse.json(
+        { error: "Could not resolve public URL" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ url: publicUrl });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-
-  // 2) Use your existing bucket name:
-  const bucketName = "uploads";
-  const filename = `${Date.now()}_${(file as File).name}`;
-
-  // 3) Use the service‐role Supabase client to write to Storage
-  const supabase = createServerClient();
-
-  // 4) Upload the blob into the "uploads" bucket
-  const { data: uploadData, error: uploadError } = await supabase.storage
-    .from(bucketName)
-    .upload(filename, file, {
-      cacheControl: "3600",
-      upsert: false,
-    });
-
-  if (uploadError || !uploadData) {
-    return NextResponse.json(
-      { error: uploadError?.message ?? "Upload failed" },
-      { status: 500 }
-    );
-  }
-
-  // 5) Fetch a public URL for that newly uploaded file
-  const { data: urlData } = supabase.storage
-    .from(bucketName)
-    .getPublicUrl(filename);
-  if (!urlData?.publicUrl) {
-    return NextResponse.json(
-      { error: "Could not get public URL" },
-      { status: 500 }
-    );
-  }
-
-  // 6) Return JSON containing the publicly accessible URL
-  return NextResponse.json({ url: urlData.publicUrl });
 }
