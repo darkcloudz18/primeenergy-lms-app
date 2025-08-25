@@ -34,7 +34,6 @@ export default function CourseContent({
 
     const userId = session.user.id;
 
-    // load existing progress
     (async () => {
       setLoading(true);
 
@@ -54,7 +53,7 @@ export default function CourseContent({
       setLoading(false);
     })();
 
-    // subscribe to new completions
+    // live updates for lesson completions (optional)
     const channel = supabase
       .channel(`lesson-completions-user-${userId}`, {
         config: { broadcast: { self: true } },
@@ -69,11 +68,7 @@ export default function CourseContent({
         },
         (payload) => {
           const newId = (payload.new as { lesson_id: string }).lesson_id;
-          setCompletedLessons((prev) => {
-            const next = new Set(prev);
-            next.add(newId);
-            return next;
-          });
+          setCompletedLessons((prev) => new Set(prev).add(newId));
         }
       )
       .subscribe();

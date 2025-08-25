@@ -1,16 +1,12 @@
-// src/components/CourseFormWithModules.tsx
 "use client";
 
 import React, { useState, ChangeEvent, FormEvent } from "react";
 import RichTextEditor from "@/components/RichTextEditor";
-import QuizForm, { QuizFormData } from "@/components/QuizForm";
+import type { QuizFormData } from "@/components/QuizForm";
+import QuizEditorInline from "@/components/QuizEditorInline";
 import type { LessonInput } from "@/lib/types";
 
-//
 // ── Types for Form Data ──────────────────────────────────────────────────────
-//
-
-// Each lesson in the form:
 export interface LessonFormData {
   title: string;
   content: string; // HTML from RichTextEditor
@@ -19,7 +15,6 @@ export interface LessonFormData {
   imageUrl: string;
 }
 
-// Each module in the form (lessons + optional quiz):
 export interface ModuleFormData {
   title: string;
   ordering: number;
@@ -27,11 +22,10 @@ export interface ModuleFormData {
   quiz: QuizFormData | null;
 }
 
-// Props for this CourseFormWithModules component:
 export interface CourseFormWithModulesProps {
   onSubmit: (data: {
     title: string;
-    description: string; // HTML from RichTextEditor
+    description: string; // HTML
     coverFile: File | null;
     category: string;
     level: string;
@@ -46,73 +40,56 @@ export default function CourseFormWithModules({
   onSubmit,
   onCancel,
 }: CourseFormWithModulesProps) {
-  //
-  // ─── Course‐Level State ─────────────────────────────────────────────────────
-  //
-  const [title, setTitle] = useState<string>("");
-  const [description, setDescription] = useState<string>(""); // HTML via RTE
+  // ─── Course State
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState(""); // HTML via RTE
   const [coverFile, setCoverFile] = useState<File | null>(null);
-  const [category, setCategory] = useState<string>("");
-  const [level, setLevel] = useState<string>("");
-  const [tag, setTag] = useState<string>("");
+  const [category, setCategory] = useState("");
+  const [level, setLevel] = useState("");
+  const [tag, setTag] = useState("");
 
-  //
-  // ─── Modules + Lessons + Quiz State ─────────────────────────────────────────
-  //
+  // ─── Modules + Final Quiz
   const [modules, setModules] = useState<ModuleFormData[]>([
     { title: "", ordering: 1, lessons: [], quiz: null },
   ]);
-
-  //
-  // ─── Final Quiz State (optional) ────────────────────────────────────────────
-  //
   const [finalQuiz, setFinalQuiz] = useState<QuizFormData | null>(null);
 
-  //
-  // ─── Helper: Update a module’s field ────────────────────────────────────────
-  //
+  // ─── Helpers
   function updateModuleField<K extends keyof ModuleFormData>(
     moduleIndex: number,
     field: K,
     value: ModuleFormData[K]
   ) {
     setModules((prev) =>
-      prev.map((mod, idx) =>
-        idx === moduleIndex ? { ...mod, [field]: value } : mod
-      )
+      prev.map((m, i) => (i === moduleIndex ? { ...m, [field]: value } : m))
     );
   }
 
-  //
-  // ─── Module CRUD ───────────────────────────────────────────────────────────
-  //
   function addModule() {
     setModules((prev) => [
       ...prev,
       { title: "", ordering: prev.length + 1, lessons: [], quiz: null },
     ]);
   }
+
   function removeModule(moduleIndex: number) {
-    setModules((prev) => prev.filter((_, idx) => idx !== moduleIndex));
+    setModules((prev) => prev.filter((_, i) => i !== moduleIndex));
   }
 
-  //
-  // ─── Lesson CRUD Within a Module ───────────────────────────────────────────
-  //
   function addLesson(moduleIndex: number) {
     setModules((prev) =>
-      prev.map((mod, idx) => {
-        if (idx !== moduleIndex) return mod;
-        const nextOrdering = mod.lessons.length + 1;
+      prev.map((m, i) => {
+        if (i !== moduleIndex) return m;
+        const nextOrder = m.lessons.length + 1;
         return {
-          ...mod,
+          ...m,
           lessons: [
-            ...mod.lessons,
+            ...m.lessons,
             {
               title: "",
-              content: "", // start empty; filled by RichTextEditor
+              content: "",
               type: "article",
-              ordering: nextOrdering,
+              ordering: nextOrder,
               imageUrl: "",
             },
           ],
@@ -120,22 +97,22 @@ export default function CourseFormWithModules({
       })
     );
   }
+
   function removeLesson(moduleIndex: number, lessonIndex: number) {
     setModules((prev) =>
-      prev.map((mod, idx) => {
-        if (idx !== moduleIndex) return mod;
-        return {
-          ...mod,
-          lessons: mod.lessons
-            .filter((_, lIdx) => lIdx !== lessonIndex)
-            .map((l, newIdx) => ({
-              ...l,
-              ordering: newIdx + 1,
-            })),
-        };
+      prev.map((m, i) => {
+        if (i !== moduleIndex) return m;
+        const pruned = m.lessons.filter((_, li) => li !== lessonIndex);
+        // normalize ordering
+        const normalized = pruned.map((l, idx) => ({
+          ...l,
+          ordering: idx + 1,
+        }));
+        return { ...m, lessons: normalized };
       })
     );
   }
+
   function updateLessonField<K extends keyof LessonFormData>(
     moduleIndex: number,
     lessonIndex: number,
@@ -143,38 +120,35 @@ export default function CourseFormWithModules({
     value: LessonFormData[K]
   ) {
     setModules((prev) =>
-      prev.map((mod, idx) => {
-        if (idx !== moduleIndex) return mod;
-        const updatedLessons = mod.lessons.map((lesson, lIdx) =>
-          lIdx === lessonIndex ? { ...lesson, [field]: value } : lesson
+      prev.map((m, i) => {
+        if (i !== moduleIndex) return m;
+        const lessons = m.lessons.map((l, li) =>
+          li === lessonIndex ? { ...l, [field]: value } : l
         );
-        return { ...mod, lessons: updatedLessons };
+        return { ...m, lessons };
       })
     );
   }
 
-  //
-  // ─── Module‐Level Quiz Helpers ──────────────────────────────────────────────
-  //
   function addQuizToModule(moduleIndex: number) {
-    const blankQuiz: QuizFormData = {
+    const blank: QuizFormData = {
       title: "",
       description: "",
       passing_score: 0,
       questions: [],
     };
-    updateModuleField(moduleIndex, "quiz", blankQuiz);
+    updateModuleField(moduleIndex, "quiz", blank);
   }
+
   function removeQuizFromModule(moduleIndex: number) {
     updateModuleField(moduleIndex, "quiz", null);
   }
+
   function saveModuleQuiz(moduleIndex: number, quizData: QuizFormData) {
     updateModuleField(moduleIndex, "quiz", quizData);
   }
 
-  //
-  // ─── Final Quiz Helpers ───────────────────────────────────────────────────
-  //
+  // Final quiz controls
   function addFinalQuiz() {
     setFinalQuiz({
       title: "",
@@ -186,26 +160,18 @@ export default function CourseFormWithModules({
   function removeFinalQuiz() {
     setFinalQuiz(null);
   }
-  function saveFinalQuiz(quizData: QuizFormData) {
-    setFinalQuiz(quizData);
-  }
 
-  //
-  // ─── Handle Cover File Change ───────────────────────────────────────────────
-  //
+  // Cover upload
   function handleCoverFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] || null;
-    setCoverFile(file);
+    setCoverFile(e.target.files?.[0] || null);
   }
 
-  //
-  // ─── Form Submission ───────────────────────────────────────────────────────
-  //
+  // Submit
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     await onSubmit({
       title,
-      description, // HTML from RichTextEditor
+      description,
       coverFile,
       category,
       level,
@@ -215,45 +181,32 @@ export default function CourseFormWithModules({
     });
   }
 
-  //
-  // ─── Render ─────────────────────────────────────────────────────────────────
-  //
   return (
     <form onSubmit={handleSubmit} className="space-y-10">
-      {/* ─── Course Details ─────────────────────────────────────────────────────── */}
+      {/* Course details */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-6">
         <h2 className="text-2xl font-semibold">Create New Course</h2>
 
-        {/* Title */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Course Title
-          </label>
+        <label className="block">
+          <span className="text-sm text-gray-700">Course Title</span>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
-            className="mt-1 w-full border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-green-200"
+            className="mt-1 w-full border-gray-300 rounded px-3 py-2"
           />
+        </label>
+
+        <div>
+          <span className="block text-sm text-gray-700">Description</span>
+          <RichTextEditor value={description} onChange={setDescription} />
         </div>
 
-        {/* Description (Rich Text) */}
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Description
-          </label>
-          <RichTextEditor
-            value={description}
-            onChange={(html) => setDescription(html)}
-          />
-        </div>
-
-        {/* Cover Image */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <span className="block text-sm text-gray-700">
             Cover Image (optional)
-          </label>
+          </span>
           <input
             type="file"
             accept="image/*"
@@ -262,58 +215,47 @@ export default function CourseFormWithModules({
           />
         </div>
 
-        {/* Category / Level / Tag */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Category
-            </label>
+          <label className="block">
+            <span className="text-sm text-gray-700">Category</span>
             <input
               type="text"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="mt-1 w-full border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-green-200"
+              className="mt-1 w-full border-gray-300 rounded px-3 py-2"
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Level
-            </label>
+          </label>
+          <label className="block">
+            <span className="text-sm text-gray-700">Level</span>
             <input
               type="text"
               value={level}
               onChange={(e) => setLevel(e.target.value)}
-              className="mt-1 w-full border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-green-200"
+              className="mt-1 w-full border-gray-300 rounded px-3 py-2"
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Tag
-            </label>
+          </label>
+          <label className="block">
+            <span className="text-sm text-gray-700">Tag</span>
             <input
               type="text"
               value={tag}
               onChange={(e) => setTag(e.target.value)}
-              className="mt-1 w-full border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-green-200"
+              className="mt-1 w-full border-gray-300 rounded px-3 py-2"
             />
-          </div>
+          </label>
         </div>
       </div>
 
-      {/* ─── Modules & Lessons ──────────────────────────────────────────────────── */}
+      {/* Modules */}
       <section className="space-y-8">
         {modules.map((mod, mIdx) => (
           <div
             key={mIdx}
             className="bg-white border border-gray-200 rounded-lg p-6 space-y-6"
           >
-            {/* Module Header */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-              {/* Module Title */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Module Title
-                </label>
+              <label className="block">
+                <span className="text-sm text-gray-700">Module Title</span>
                 <input
                   type="text"
                   value={mod.title}
@@ -321,14 +263,12 @@ export default function CourseFormWithModules({
                     updateModuleField(mIdx, "title", e.target.value)
                   }
                   required
-                  className="mt-1 w-full border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-green-200"
+                  className="mt-1 w-full border-gray-300 rounded px-3 py-2"
                 />
-              </div>
-              {/* Module Ordering */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Module Ordering
-                </label>
+              </label>
+
+              <label className="block">
+                <span className="text-sm text-gray-700">Ordering</span>
                 <input
                   type="number"
                   min={1}
@@ -337,10 +277,10 @@ export default function CourseFormWithModules({
                     updateModuleField(mIdx, "ordering", Number(e.target.value))
                   }
                   required
-                  className="mt-1 w-24 border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-green-200"
+                  className="mt-1 w-24 border-gray-300 rounded px-3 py-2"
                 />
-              </div>
-              {/* Remove Module Button */}
+              </label>
+
               <div className="flex justify-end md:col-span-3">
                 <button
                   type="button"
@@ -352,19 +292,18 @@ export default function CourseFormWithModules({
               </div>
             </div>
 
-            {/* ── Lessons List ────────────────────────────────────────────────────── */}
+            {/* Lessons */}
             <div className="space-y-6">
               {mod.lessons.map((lesson, lIdx) => (
                 <div
                   key={lIdx}
-                  className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4"
+                  className="bg-gray-50 border rounded-lg p-4 space-y-4"
                 >
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    {/* Lesson Title */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
+                    <label className="block">
+                      <span className="text-sm text-gray-700">
                         Lesson Title
-                      </label>
+                      </span>
                       <input
                         type="text"
                         value={lesson.title}
@@ -372,14 +311,12 @@ export default function CourseFormWithModules({
                           updateLessonField(mIdx, lIdx, "title", e.target.value)
                         }
                         required
-                        className="mt-1 w-full border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-green-200"
+                        className="mt-1 w-full border-gray-300 rounded px-3 py-2"
                       />
-                    </div>
-                    {/* Lesson Ordering */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Ordering
-                      </label>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm text-gray-700">Ordering</span>
                       <input
                         type="number"
                         min={1}
@@ -393,10 +330,10 @@ export default function CourseFormWithModules({
                           )
                         }
                         required
-                        className="mt-1 w-24 border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-green-200"
+                        className="mt-1 w-24 border-gray-300 rounded px-3 py-2"
                       />
-                    </div>
-                    {/* Remove Lesson Button */}
+                    </label>
+
                     <div className="flex justify-end md:col-span-3">
                       <button
                         type="button"
@@ -408,25 +345,21 @@ export default function CourseFormWithModules({
                     </div>
                   </div>
 
-                  {/* Lesson Content (Rich Text) */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
+                    <span className="block text-sm text-gray-700">
                       Lesson Content
-                    </label>
+                    </span>
                     <RichTextEditor
                       value={lesson.content}
-                      onChange={(newHtml) =>
-                        updateLessonField(mIdx, lIdx, "content", newHtml)
+                      onChange={(html) =>
+                        updateLessonField(mIdx, lIdx, "content", html)
                       }
                     />
                   </div>
 
-                  {/* Lesson Type / Image URL */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Type
-                      </label>
+                    <label className="block">
+                      <span className="text-sm text-gray-700">Type</span>
                       <select
                         value={lesson.type}
                         onChange={(e) =>
@@ -437,17 +370,18 @@ export default function CourseFormWithModules({
                             e.target.value as LessonInput["type"]
                           )
                         }
-                        className="mt-1 w-full border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-green-200"
+                        className="mt-1 w-full border-gray-300 rounded px-3 py-2"
                       >
                         <option value="article">Article</option>
                         <option value="video">Video</option>
                         <option value="image">Image</option>
                       </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm text-gray-700">
                         Image URL (optional)
-                      </label>
+                      </span>
                       <input
                         type="text"
                         value={lesson.imageUrl}
@@ -459,24 +393,23 @@ export default function CourseFormWithModules({
                             e.target.value
                           )
                         }
-                        className="mt-1 w-full border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring focus:ring-green-200"
+                        className="mt-1 w-full border-gray-300 rounded px-3 py-2"
                       />
-                    </div>
+                    </label>
                   </div>
                 </div>
               ))}
 
-              {/* Add Lesson Button */}
               <button
                 type="button"
                 onClick={() => addLesson(mIdx)}
-                className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
               >
                 + Add Lesson
               </button>
             </div>
 
-            {/* ── Module‐Level Quiz (optional) ────────────────────────────────────── */}
+            {/* Module Quiz (auto-save) */}
             <div className="mt-6 p-4 border border-dashed border-gray-300 rounded-lg space-y-4">
               <h4 className="text-lg font-medium">Module Quiz (optional)</h4>
               {mod.quiz === null ? (
@@ -488,36 +421,27 @@ export default function CourseFormWithModules({
                   + Add Quiz for this Module
                 </button>
               ) : (
-                <>
-                  <QuizForm
-                    initialQuiz={mod.quiz}
-                    onSubmit={(newQuiz) => saveModuleQuiz(mIdx, newQuiz)}
-                    onCancel={() => removeQuizFromModule(mIdx)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeQuizFromModule(mIdx)}
-                    className="mt-2 text-sm text-red-600 hover:underline"
-                  >
-                    Remove This Module’s Quiz
-                  </button>
-                </>
+                <QuizEditorInline
+                  value={mod.quiz}
+                  onChange={(q) => saveModuleQuiz(mIdx, q)}
+                  onRemove={() => removeQuizFromModule(mIdx)}
+                  heading="Module Quiz"
+                />
               )}
             </div>
           </div>
         ))}
 
-        {/* ── Add Module Button ─────────────────────────────────────────────────── */}
         <button
           type="button"
           onClick={addModule}
-          className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
         >
           + Add Module
         </button>
       </section>
 
-      {/* ─── Final Quiz Section ────────────────────────────────────────────────── */}
+      {/* Final Quiz (auto-save) */}
       <section className="mt-10 p-6 bg-white border border-gray-200 rounded-lg space-y-4">
         <h3 className="text-2xl font-semibold">Final Quiz (optional)</h3>
         {finalQuiz === null ? (
@@ -529,25 +453,17 @@ export default function CourseFormWithModules({
             + Add Final Quiz
           </button>
         ) : (
-          <>
-            <QuizForm
-              initialQuiz={finalQuiz}
-              onSubmit={saveFinalQuiz}
-              onCancel={removeFinalQuiz}
-            />
-            <button
-              type="button"
-              onClick={removeFinalQuiz}
-              className="mt-2 text-sm text-red-600 hover:underline"
-            >
-              Remove Final Quiz
-            </button>
-          </>
+          <QuizEditorInline
+            value={finalQuiz}
+            onChange={setFinalQuiz}
+            onRemove={removeFinalQuiz}
+            heading="Final Quiz"
+          />
         )}
       </section>
 
-      {/* ─── Save + Cancel Buttons ──────────────────────────────────────────────── */}
-      <div className="flex justify-end space-x-4">
+      {/* Submit */}
+      <div className="flex justify-end gap-4">
         <button
           type="button"
           onClick={onCancel}

@@ -15,26 +15,26 @@ interface PageProps {
 export default async function LessonPage({ params }: PageProps) {
   const { courseId, moduleId, lessonId } = params;
 
-  // 1) Auth
+  // 1) Auth (RLS client)
   const supabase = createServerComponentClient({ cookies });
   const {
     data: { user },
-    error: authError,
   } = await supabase.auth.getUser();
-  if (authError || !user) redirect("/auth");
+  if (!user) redirect("/auth");
 
-  // 2) Modules
+  // 2) Modules (admin client—bypass RLS for metadata)
   const { data: modulesRaw, error: modulesError } = await supabaseAdmin
     .from("modules")
     .select("id, title, ordering, course_id, created_at")
     .eq("course_id", courseId)
     .order("ordering", { ascending: true });
+
   if (modulesError || !modulesRaw) {
-    throw new Error("Failed to load modules: " + modulesError.message);
+    throw new Error("Failed to load modules: " + (modulesError?.message ?? ""));
   }
   const modules: Module[] = modulesRaw;
 
-  // 3) Lessons
+  // 3) Lessons for those modules
   const moduleIds = modules.map((m) => m.id);
   let lessonsByModule: Record<string, Lesson[]> = {};
   if (moduleIds.length) {
@@ -45,20 +45,34 @@ export default async function LessonPage({ params }: PageProps) {
       )
       .in("module_id", moduleIds)
       .order("ordering", { ascending: true });
-    if (lessonsError || !lessonsRaw) {
+
+    if (lessonsError) {
       throw new Error("Failed to load lessons: " + lessonsError.message);
     }
     lessonsByModule = moduleIds.reduce((acc, id) => ({ ...acc, [id]: [] }), {});
-    for (const l of lessonsRaw) {
-      lessonsByModule[l.module_id].push(l);
-    }
+    (lessonsRaw ?? []).forEach((l) => {
+      lessonsByModule[l.module_id].push(l as Lesson);
+    });
   }
 
-  // 4) Build modulesWithLessons
+  // 4) Attach quiz_id per module
+  let quizMap: Record<string, string> = {};
+  if (moduleIds.length) {
+    const { data: qzRaw, error: qzErr } = await supabaseAdmin
+      .from("quizzes")
+      .select("id, module_id")
+      .in("module_id", moduleIds);
+
+    if (qzErr)
+      throw new Error("Failed to load module quizzes: " + qzErr.message);
+    quizMap = Object.fromEntries((qzRaw ?? []).map((q) => [q.module_id, q.id]));
+  }
+
   const modulesWithLessons: ModuleWithLessons[] = modules.map((m) => ({
     id: m.id,
     title: m.title,
     ordering: m.ordering,
+    quiz_id: quizMap[m.id], // <-- IMPORTANT
     lessons: lessonsByModule[m.id] || [],
   }));
 
@@ -71,30 +85,30 @@ export default async function LessonPage({ params }: PageProps) {
     .eq("id", lessonId)
     .single();
   if (lessonError || !lessonRow) {
-    throw new Error("Lesson not found: " + lessonError.message);
+    throw new Error("Lesson not found: " + (lessonError?.message ?? ""));
   }
   const lesson: Lesson = lessonRow;
 
-  // 6) Final quiz if any
+  // 6) Final quiz path (must check quiz_questions)
   let finalQuizPath: string | undefined;
   const { data: fq, error: fqErr } = await supabaseAdmin
     .from("quizzes")
     .select("id")
     .eq("course_id", courseId)
     .is("module_id", null)
-    .single();
+    .maybeSingle();
+
   if (!fqErr && fq?.id) {
-    const { data: q1 } = await supabaseAdmin
-      .from("questions")
-      .select("id")
-      .eq("quiz_id", fq.id)
-      .limit(1);
-    if (q1 && q1.length) {
+    const { count } = await supabaseAdmin
+      .from("quiz_questions")
+      .select("id", { head: true, count: "exact" })
+      .eq("quiz_id", fq.id);
+    if ((count ?? 0) > 0) {
       finalQuizPath = `/courses/${courseId}/final-quiz`;
     }
   }
 
-  // 7) User progress
+  // 7) User progress (RLS client)
   const { data: lcRows } = await supabase
     .from("lesson_completions")
     .select("lesson_id")
@@ -108,7 +122,7 @@ export default async function LessonPage({ params }: PageProps) {
     .eq("passed", true);
   const passedQuizIds = qaRows?.map((r) => r.quiz_id) || [];
 
-  // 8) Render the client wrapper
+  // 8) Render
   return (
     <LessonPageClient
       courseId={courseId}

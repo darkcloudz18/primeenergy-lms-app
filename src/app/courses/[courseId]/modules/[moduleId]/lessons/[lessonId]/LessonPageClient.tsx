@@ -1,7 +1,7 @@
 // src/app/courses/[courseId]/modules/[moduleId]/lessons/[lessonId]/LessonPageClient.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "./components/Sidebar";
 import LessonContent from "./components/LessonContent";
@@ -30,23 +30,39 @@ export default function LessonPageClient({
   initialCompleted,
   initialPassed,
 }: Props) {
+  const router = useRouter();
+
+  // completed needs to be mutable (we add to it)
   const [completed, setCompleted] = useState<Set<string>>(
     () => new Set(initialCompleted)
   );
-  const [passed] = useState<Set<string>>(() => new Set(initialPassed));
-  const router = useRouter();
 
-  // flatten all lessons in order
-  const allLessons = modules.flatMap((m) =>
-    m.lessons.map((l) => ({ ...l, module_id: m.id }))
+  // passed doesn’t change here — compute once from props (no unused setter)
+  const passed = useMemo(() => new Set(initialPassed), [initialPassed]);
+
+  // Flatten all lessons in order for next/prev navigation
+  const allLessons = useMemo(
+    () =>
+      modules.flatMap((m) => m.lessons.map((l) => ({ ...l, module_id: m.id }))),
+    [modules]
   );
   const currentIndex = allLessons.findIndex((l) => l.id === lessonId);
-  const prevLesson = allLessons[currentIndex - 1];
-  const nextLesson = allLessons[currentIndex + 1];
+  const prevLesson =
+    currentIndex > 0 ? allLessons[currentIndex - 1] : undefined;
+  const nextLesson =
+    currentIndex >= 0 && currentIndex + 1 < allLessons.length
+      ? allLessons[currentIndex + 1]
+      : undefined;
 
-  // called by LessonContent when Mark Complete succeeds
+  // Called by LessonContent when “Mark Complete” succeeds
   const handleComplete = (id: string) => {
-    setCompleted((s) => new Set(s).add(id));
+    setCompleted((s) => {
+      const copy = new Set(s);
+      copy.add(id);
+      return copy;
+    });
+
+    // Auto-advance to next lesson if there is one
     if (nextLesson) {
       router.push(
         `/courses/${courseId}/modules/${nextLesson.module_id}/lessons/${nextLesson.id}`
@@ -65,6 +81,7 @@ export default function LessonPageClient({
         completedLessons={[...completed]}
         passedQuizzes={[...passed]}
       />
+
       <LessonContent
         courseId={courseId}
         moduleId={moduleId}

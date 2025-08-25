@@ -14,6 +14,30 @@ interface Course {
   level: string | null;
   tag: string | null;
   created_at: string;
+
+  // Optional flags your schema might have
+  archived?: boolean | null;
+  is_archived?: boolean | null;
+  deleted?: boolean | null;
+  is_deleted?: boolean | null;
+  deleted_at?: string | null;
+  status?: string | null; // e.g. "archived" | "deleted" | "active"
+  is_active?: boolean | null; // sometimes false when archived/deleted
+}
+
+function isVisibleCourse(c: Course): boolean {
+  // Exclude archived/deleted by a variety of common flags
+  if (c.archived === true) return false;
+  if (c.is_archived === true) return false;
+  if (c.deleted === true) return false;
+  if (c.is_deleted === true) return false;
+  if (c.deleted_at != null) return false;
+  if (typeof c.is_active === "boolean" && !c.is_active) return false;
+  if (typeof c.status === "string") {
+    const s = c.status.toLowerCase();
+    if (s === "archived" || s === "deleted" || s === "inactive") return false;
+  }
+  return true;
 }
 
 export default function AllCoursesPage() {
@@ -31,33 +55,32 @@ export default function AllCoursesPage() {
 
   useEffect(() => {
     async function fetchCourses() {
+      setLoading(true);
       const { data, error } = await supabase
         .from<"courses", Course>("courses")
-        .select(
-          "id, title, description, image_url, category, level, tag, created_at"
-        );
+        .select("*"); // grab all columns so we can filter by any archival/deletion flags
 
       if (error) {
         console.error("Error fetching courses:", error.message);
         setLoading(false);
         return;
       }
-      if (data) {
-        setCourses(data);
 
-        // build unique filter dropdowns
-        const cats = new Set<string>();
-        const levs = new Set<string>();
-        const tgs = new Set<string>();
-        data.forEach((c) => {
-          if (c.category) cats.add(c.category);
-          if (c.level) levs.add(c.level);
-          if (c.tag) tgs.add(c.tag);
-        });
-        setAllCategories(Array.from(cats).sort());
-        setAllLevels(Array.from(levs).sort());
-        setAllTags(Array.from(tgs).sort());
-      }
+      const visible = (data ?? []).filter(isVisibleCourse);
+      setCourses(visible);
+
+      // Build unique filter dropdowns from visible only
+      const cats = new Set<string>();
+      const levs = new Set<string>();
+      const tgs = new Set<string>();
+      visible.forEach((c) => {
+        if (c.category) cats.add(c.category);
+        if (c.level) levs.add(c.level);
+        if (c.tag) tgs.add(c.tag);
+      });
+      setAllCategories(Array.from(cats).sort());
+      setAllLevels(Array.from(levs).sort());
+      setAllTags(Array.from(tgs).sort());
       setLoading(false);
     }
     fetchCourses();
@@ -165,7 +188,6 @@ export default function AllCoursesPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCourses.map((course) => {
-            // only render if image_url is a proper https:// URL
             const hasValidImage =
               typeof course.image_url === "string" &&
               /^https?:\/\//.test(course.image_url);

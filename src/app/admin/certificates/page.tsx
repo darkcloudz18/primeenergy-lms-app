@@ -25,6 +25,9 @@ export default function AdminCertificatesPage() {
   // form inputs
   const [name, setName] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   const [fontSize, setFontSize] = useState(48);
   const [fontColor, setFontColor] = useState("#0b3d2e");
   const [pos, setPos] = useState({
@@ -38,7 +41,9 @@ export default function AdminCertificatesPage() {
 
   const load = async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/certificates/templates");
+    const res = await fetch("/api/admin/certificates/templates", {
+      credentials: "include",
+    });
     const j = await res.json();
     setTemplates(j.templates ?? []);
     setLoading(false);
@@ -48,9 +53,36 @@ export default function AdminCertificatesPage() {
     load();
   }, []);
 
+  // Upload to our server route which stores in Supabase Storage (and can auto-create bucket)
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+
+      const res = await fetch("/api/admin/certificates/upload", {
+        method: "POST",
+        body: fd,
+        credentials: "include",
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Upload failed");
+
+      setImageUrl(j.url); // use returned public URL
+    } catch (err) {
+      setUploadError((err as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   const onCreate = async () => {
     if (!name || !imageUrl) {
-      alert("Please fill name and imageUrl");
+      alert("Please fill name and upload a background image (or paste a URL).");
       return;
     }
     const res = await fetch("/api/admin/certificates/templates", {
@@ -112,23 +144,40 @@ export default function AdminCertificatesPage() {
       <section className="bg-white rounded shadow p-4 space-y-4">
         <h2 className="text-lg font-medium">Create / Upload Template</h2>
         <div className="grid sm:grid-cols-2 gap-4">
+          {/* Left: form */}
           <div className="space-y-2">
             <label className="block text-sm font-medium">Name</label>
             <input
               className="border rounded px-3 py-2 w-full"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Default Template"
+              placeholder="Template 1"
             />
 
             <label className="block text-sm font-medium mt-2">
-              Background Image URL
+              Upload Background Image
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleUpload}
+              className="block w-full text-sm"
+            />
+            {uploading && (
+              <p className="text-xs text-gray-500 mt-1">Uploading…</p>
+            )}
+            {uploadError && (
+              <p className="text-xs text-red-600 mt-1">{uploadError}</p>
+            )}
+
+            <label className="block text-sm font-medium mt-2">
+              (Optional) Background Image URL
             </label>
             <input
               className="border rounded px-3 py-2 w-full"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="Paste uploaded image URL"
+              placeholder="Or paste an image URL"
             />
 
             <div className="grid grid-cols-2 gap-2 mt-2">
@@ -186,10 +235,10 @@ export default function AdminCertificatesPage() {
             </button>
           </div>
 
-          {/* Live preview */}
+          {/* Right: live preview */}
           <div>
             <div
-              className="relative border rounded overflow-hidden"
+              className="relative border rounded overflow-hidden bg-gray-50"
               style={{ width: 600, height: 400 }}
             >
               {imageUrl && (
@@ -198,6 +247,7 @@ export default function AdminCertificatesPage() {
                   alt="Preview"
                   fill
                   className="object-cover"
+                  unoptimized
                 />
               )}
               <div
@@ -254,12 +304,13 @@ export default function AdminCertificatesPage() {
           <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {templates.map((t) => (
               <li key={t.id} className="border rounded p-3 space-y-2">
-                <div className="relative w-full h-32 rounded overflow-hidden">
+                <div className="relative w-full h-32 rounded overflow-hidden bg-gray-50">
                   <Image
                     src={t.image_url}
                     alt={t.name}
                     fill
                     className="object-cover"
+                    unoptimized
                   />
                 </div>
                 <div className="flex items-center justify-between">

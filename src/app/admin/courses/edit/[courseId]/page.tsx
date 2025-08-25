@@ -3,6 +3,7 @@ import React from "react";
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { Course, Module, Lesson, QuizEntity } from "@/lib/types";
+import CourseImageUpload from "./CourseImageUpload"; // ⬅️ add this
 
 interface PageProps {
   params: { courseId: string };
@@ -44,7 +45,7 @@ export default async function EditCoursePage({ params }: PageProps) {
   const lesRes = await supabaseAdmin
     .from("lessons")
     .select("id, module_id, title, ordering, created_at")
-    .in("module_id", modIds)
+    .in("module_id", modIds.length ? modIds : ["_none_"]) // safe when no modules
     .order("ordering", { ascending: true });
   const lessons = (lesRes.data || []) as Lesson[];
 
@@ -52,7 +53,7 @@ export default async function EditCoursePage({ params }: PageProps) {
   const qRes = await supabaseAdmin
     .from("quizzes")
     .select("id, module_id, title")
-    .in("module_id", modIds);
+    .in("module_id", modIds.length ? modIds : ["_none_"]);
   const moduleQuizzes = (qRes.data || []) as QuizEntity[];
 
   // ─── Fetch final quiz (module_id = null) ─────────────────────
@@ -61,8 +62,8 @@ export default async function EditCoursePage({ params }: PageProps) {
     .select("id, title")
     .eq("course_id", courseId)
     .is("module_id", null)
-    .single();
-  const finalQuiz = finalRes.data as QuizEntity | null;
+    .maybeSingle();
+  const finalQuiz = (finalRes.data || null) as QuizEntity | null;
 
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-8 bg-gray-50">
@@ -111,14 +112,14 @@ export default async function EditCoursePage({ params }: PageProps) {
           ))}
         </div>
 
-        <div>
-          <label className="block font-medium mb-1">Image URL</label>
-          <input
-            name="image_url"
-            defaultValue={course.image_url || ""}
-            className="w-full border rounded px-3 py-2"
-          />
-        </div>
+        {/* ⬇️ Replace raw image_url with uploader. It writes the public URL into a hidden input named image_url. */}
+        <CourseImageUpload
+          courseId={course.id}
+          defaultUrl={course.image_url ?? ""}
+          inputName="image_url"
+          label="Course image"
+          bucket="course-images"
+        />
 
         <button
           type="submit"
@@ -134,15 +135,16 @@ export default async function EditCoursePage({ params }: PageProps) {
         <div className="border-b pb-4">
           <h2 className="text-2xl font-semibold">Final Quiz</h2>
           {finalQuiz ? (
+            // ✅ point to a dedicated final-quiz editor route
             <Link
-              href={`/admin/courses/edit/${courseId}/quiz/${finalQuiz.id}`}
+              href={`/admin/courses/edit/${courseId}/final-quiz/${finalQuiz.id}`}
               className="text-blue-600 hover:underline text-sm"
             >
               Edit Final Quiz
             </Link>
           ) : (
             <Link
-              href={`/admin/courses/edit/${courseId}/quiz/new`}
+              href={`/admin/courses/edit/${courseId}/final-quiz/new`}
               className="text-green-600 hover:underline text-sm"
             >
               + Add Final Quiz

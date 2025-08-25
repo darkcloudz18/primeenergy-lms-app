@@ -16,6 +16,7 @@ interface Props {
   tag?: string;
   enrolledCount: number;
   modules: ModuleWithLessons[];
+  finalQuizId?: string | null; // <-- add
 }
 
 export default function ClientCoursePage({
@@ -28,6 +29,7 @@ export default function ClientCoursePage({
   tag,
   enrolledCount,
   modules,
+  finalQuizId, // <-- add
 }: Props) {
   const supabase = useSupabaseClient();
   const session = useSession();
@@ -37,14 +39,12 @@ export default function ClientCoursePage({
   const [loadingEnroll, setLoadingEnroll] = useState(true);
   const [enrollCountState, setEnrollCountState] = useState(enrolledCount);
 
-  // 1️⃣ Check enrollment on mount
   useEffect(() => {
     if (!user) {
       setIsEnrolled(false);
       setLoadingEnroll(false);
       return;
     }
-
     setLoadingEnroll(true);
     supabase
       .from("enrollments")
@@ -57,15 +57,12 @@ export default function ClientCoursePage({
       });
   }, [supabase, courseId, user]);
 
-  // 2️⃣ Toggle enroll / unenroll
   const handleToggleEnroll = async () => {
     if (!user) {
       alert("Please sign in first");
       return;
     }
-
     setLoadingEnroll(true);
-
     if (isEnrolled) {
       await supabase
         .from("enrollments")
@@ -81,11 +78,9 @@ export default function ClientCoursePage({
       setIsEnrolled(true);
       setEnrollCountState((c) => c + 1);
     }
-
     setLoadingEnroll(false);
   };
 
-  // 3️⃣ Build “Start Learning” URL for the very first lesson:
   const firstLessonPath =
     isEnrolled && modules.length > 0 && modules[0].lessons.length > 0
       ? `/courses/${courseId}/modules/${modules[0].id}/lessons/${modules[0].lessons[0].id}`
@@ -107,11 +102,11 @@ export default function ClientCoursePage({
         onToggleEnroll={handleToggleEnroll}
         firstLessonPath={firstLessonPath}
       />
-
       <CourseContent
         courseId={courseId}
         modules={modules}
         isEnrolled={isEnrolled}
+        finalQuizId={finalQuizId ?? null} // <-- pass it
       />
     </div>
   );
