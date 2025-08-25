@@ -102,14 +102,28 @@ export default function LessonPageClient({
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r overflow-y-auto">
         <div className="p-4 border-b">
+          <div className="text-xs font-bold uppercase tracking-wide text-gray-600">
+            Course Title
+          </div>
+          <div className="mt-1 font-semibold text-sm truncate">
+            {courseTitle}
+          </div>
+
           <Link
             href={`/courses/${courseId}`}
-            className="flex items-center text-gray-700 hover:text-green-600"
+            className="mt-2 inline-flex items-center text-sm text-gray-600 hover:text-green-600"
           >
-            <ChevronLeftIcon className="w-5 h-5 mr-2" />
-            <span className="font-medium">{courseTitle}</span>
+            <ChevronLeftIcon className="w-4 h-4 mr-1" />
+            Back to course
           </Link>
         </div>
+
+        <div className="px-4 pt-3 pb-2 border-b">
+          <div className="text-xs font-bold uppercase tracking-wide text-gray-600">
+            Course Content
+          </div>
+        </div>
+
         <nav className="text-sm">
           {lessons.map((lsn, i) => {
             const active = lsn.id === lesson.id;

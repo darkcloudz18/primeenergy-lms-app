@@ -1,44 +1,69 @@
-import LessonPageClient from "./components/LessonPageClient";
+// src/app/courses/[courseId]/lessons/[lessonId]/page.tsx
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import type { Lesson } from "@/lib/types";
+import LessonPageClient from "./components/LessonPageClient";
 
-interface PageProps {
+type PageProps = {
   params: { courseId: string; lessonId: string };
-}
+};
 
 export default async function LessonPage({ params }: PageProps) {
   const { courseId, lessonId } = params;
 
-  // 1) course title for the back‐link
+  // 1) Course (for title)
   const { data: course } = await supabaseAdmin
     .from("courses")
-    .select("title")
+    .select("id, title")
     .eq("id", courseId)
     .single();
-  if (!course) throw new Error("Course not found");
 
-  // 2) all lessons in this course for the sidebar
-  const { data: lessonsRaw } = await supabaseAdmin
+  // 2) Lesson with its module_id
+  const { data: lessonRow, error: lessonErr } = await supabaseAdmin
     .from("lessons")
-    .select("id, title")
-    .eq("course_id", courseId)
-    .order("ordering", { ascending: true });
-  const lessons = (lessonsRaw ?? []) as Lesson[];
-
-  // 3) the currently active lesson
-  const { data: lesson } = await supabaseAdmin
-    .from("lessons")
-    .select("id, title, content")
+    .select("id, title, content, module_id")
     .eq("id", lessonId)
     .single();
-  if (!lesson) throw new Error("Lesson not found");
+
+  if (lessonErr || !lessonRow) {
+    return <div className="p-6 text-red-600">Lesson not found.</div>;
+  }
+
+  // 3) Ensure lesson belongs to this course via its module
+  const { data: mod } = await supabaseAdmin
+    .from("modules")
+    .select("id, course_id")
+    .eq("id", lessonRow.module_id)
+    .single();
+
+  if (!mod || mod.course_id !== courseId) {
+    return (
+      <div className="p-6 text-red-600">
+        This lesson does not belong to this course.
+      </div>
+    );
+  }
+
+  // 4) Sibling lessons for sidebar/nav
+  const { data: siblings } = await supabaseAdmin
+    .from("lessons")
+    .select("id, title, ordering")
+    .eq("module_id", lessonRow.module_id)
+    .order("ordering", { ascending: true });
 
   return (
     <LessonPageClient
-      courseTitle={course.title}
+      courseTitle={course?.title ?? ""}
       courseId={courseId}
-      lessons={lessons}
-      lesson={lesson}
+      moduleId={lessonRow.module_id}
+      lessons={(siblings ?? []).map((l) => ({
+        id: l.id,
+        title: l.title,
+        ordering: l.ordering,
+      }))}
+      lesson={{
+        id: lessonRow.id,
+        title: lessonRow.title,
+        content: lessonRow.content as unknown as string,
+      }}
     />
   );
 }
