@@ -175,7 +175,7 @@ export default function Home({
             Join thousands of learners powering their solar energy future.
           </p>
           <Link
-            href="/register"
+            href="/auth/register"
             className="bg-white text-[#03BF63] px-6 py-3 rounded font-medium hover:bg-gray-100 transition"
           >
             Get Started

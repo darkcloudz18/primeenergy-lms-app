@@ -128,12 +128,6 @@ export default function About() {
           </p>
           <div className="flex items-center justify-center gap-3">
             <Link
-              href="/contact"
-              className="bg-white text-[#03BF63] px-6 py-3 rounded font-medium hover:bg-gray-100 transition"
-            >
-              Contact Us
-            </Link>
-            <Link
               href="/courses"
               className="border border-white px-6 py-3 rounded font-medium hover:bg-white hover:text-[#03BF63] transition"
             >
