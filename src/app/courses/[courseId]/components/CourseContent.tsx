@@ -1,7 +1,6 @@
-// src/app/courses/[courseId]/components/CourseContent.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSupabaseClient, useSession } from "@supabase/auth-helpers-react";
 import type { ModuleWithLessons } from "@/lib/types";
@@ -10,12 +9,22 @@ interface Props {
   courseId: string;
   modules: ModuleWithLessons[];
   isEnrolled: boolean;
+  courseTitle?: string;
+  finalQuizPath?: string;
 }
+
+type LastAttempt = {
+  score: number;
+  passed: boolean;
+  finishedAt?: string | null;
+};
 
 export default function CourseContent({
   courseId,
   modules,
   isEnrolled,
+  courseTitle,
+  finalQuizPath,
 }: Props) {
   const supabase = useSupabaseClient();
   const session = useSession();
@@ -23,8 +32,11 @@ export default function CourseContent({
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(
     new Set()
   );
-  const [passedQuizzes, setPassedQuizzes] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [lastAttempt, setLastAttempt] = useState<LastAttempt | null>(null);
+
+  const fmtDate = (iso?: string | null) =>
+    iso ? new Date(iso).toLocaleDateString() : "";
 
   useEffect(() => {
     if (!session?.user) {
@@ -43,17 +55,41 @@ export default function CourseContent({
         .eq("user_id", userId);
       setCompletedLessons(new Set(lcRows?.map((r) => r.lesson_id) || []));
 
-      const { data: qaRows } = await supabase
-        .from("quiz_attempts")
-        .select("quiz_id")
-        .eq("user_id", userId)
-        .eq("passed", true);
-      setPassedQuizzes(new Set(qaRows?.map((r) => r.quiz_id) || []));
+      const { data: finalQuiz } = await supabase
+        .from("quizzes")
+        .select("id")
+        .eq("course_id", courseId)
+        .is("module_id", null)
+        .maybeSingle();
+
+      if (finalQuiz?.id) {
+        const { data: latest } = await supabase
+          .from("quiz_attempts")
+          .select("score, passed, finished_at, created_at")
+          .eq("user_id", userId)
+          .eq("quiz_id", finalQuiz.id)
+          .not("finished_at", "is", null)
+          .order("finished_at", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latest) {
+          setLastAttempt({
+            score: latest.score ?? 0,
+            passed: !!latest.passed,
+            finishedAt: latest.finished_at ?? latest.created_at ?? null,
+          });
+        } else {
+          setLastAttempt(null);
+        }
+      } else {
+        setLastAttempt(null);
+      }
 
       setLoading(false);
     })();
 
-    // live updates for lesson completions (optional)
     const channel = supabase
       .channel(`lesson-completions-user-${userId}`, {
         config: { broadcast: { self: true } },
@@ -76,21 +112,25 @@ export default function CourseContent({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session, supabase]);
+  }, [session, supabase, courseId]);
 
   function isModuleUnlocked(idx: number) {
     if (!isEnrolled) return false;
     if (idx === 0) return true;
     const prev = modules[idx - 1];
-    if (prev.quiz_id && passedQuizzes.has(prev.quiz_id)) return true;
-    if (prev.lessons.every((l) => completedLessons.has(l.id))) return true;
-    return false;
+    return prev.lessons.every((l) => completedLessons.has(l.id));
   }
+
+  const allModulesComplete = useMemo(
+    () =>
+      modules.every((m) => m.lessons.every((l) => completedLessons.has(l.id))),
+    [modules, completedLessons]
+  );
 
   if (!isEnrolled) {
     return (
       <div className="p-6 text-center text-gray-600">
-        🔒 Enroll in this course to unlock its lessons.
+        Enroll in this course to unlock its lessons.
       </div>
     );
   }
@@ -103,6 +143,18 @@ export default function CourseContent({
 
   return (
     <section className="space-y-12">
+      {/* {courseTitle ? (
+        <div className="mb-2">
+          <div className="text-xs font-bold uppercase tracking-wide text-gray-500">
+            Course Title
+          </div>
+          <div className="text-base font-semibold">{courseTitle}</div>
+          <div className="mt-2 text-xs font-bold uppercase tracking-wide text-gray-500">
+            Course Content
+          </div>
+        </div>
+      ) : null} */}
+
       {modules.map((mod, idx) => {
         const unlocked = isModuleUnlocked(idx);
         return (
@@ -146,12 +198,51 @@ export default function CourseContent({
               </ul>
             ) : (
               <div className="p-6 text-center text-gray-500">
-                🔒 Complete prior module to unlock.
+                Complete the prior module to unlock.
               </div>
             )}
           </div>
         );
       })}
+
+      {finalQuizPath ? (
+        <div className="border rounded-lg shadow-sm">
+          <header className="bg-gray-100 px-6 py-4 flex items-center justify-between">
+            <h3 className="text-xl font-semibold">Final Quiz</h3>
+            {lastAttempt ? (
+              <span className="text-sm text-gray-600">
+                Last attempt: {lastAttempt.score}{" "}
+                {lastAttempt.passed ? "✓" : "✗"}
+                {lastAttempt.finishedAt
+                  ? ` on ${fmtDate(lastAttempt.finishedAt)}`
+                  : ""}
+              </span>
+            ) : (
+              <span className="text-sm text-gray-400">No attempts yet</span>
+            )}
+          </header>
+          <div className="p-6">
+            <Link
+              href={finalQuizPath}
+              className={`text-blue-600 hover:underline ${
+                allModulesComplete ? "" : "opacity-60"
+              }`}
+              title={
+                allModulesComplete
+                  ? "Open the Final Quiz"
+                  : "Complete all modules to unlock the Final Quiz"
+              }
+            >
+              Go to Final Quiz
+            </Link>
+            <p className="mt-1 text-sm text-gray-500">
+              {allModulesComplete
+                ? "Ready when you are."
+                : "The final exam unlocks after completing all modules."}
+            </p>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

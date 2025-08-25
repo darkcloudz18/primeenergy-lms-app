@@ -16,7 +16,7 @@ interface Props {
   tag?: string;
   enrolledCount: number;
   modules: ModuleWithLessons[];
-  finalQuizId?: string | null; // <-- add
+  finalQuizId?: string | null;
 }
 
 export default function ClientCoursePage({
@@ -29,7 +29,7 @@ export default function ClientCoursePage({
   tag,
   enrolledCount,
   modules,
-  finalQuizId, // <-- add
+  finalQuizId,
 }: Props) {
   const supabase = useSupabaseClient();
   const session = useSession();
@@ -86,6 +86,10 @@ export default function ClientCoursePage({
       ? `/courses/${courseId}/modules/${modules[0].id}/lessons/${modules[0].lessons[0].id}`
       : null;
 
+  const finalQuizPath = finalQuizId
+    ? `/courses/${courseId}/final-quiz`
+    : undefined;
+
   return (
     <div className="space-y-8 max-w-4xl mx-auto p-6">
       <CourseHeader
@@ -106,7 +110,8 @@ export default function ClientCoursePage({
         courseId={courseId}
         modules={modules}
         isEnrolled={isEnrolled}
-        finalQuizId={finalQuizId ?? null} // <-- pass it
+        courseTitle={title}
+        finalQuizPath={finalQuizPath}
       />
     </div>
   );
