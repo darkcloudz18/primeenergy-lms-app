@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 
 export async function GET(
   _req: Request,
   { params }: { params: { courseId: string } }
 ) {
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
   const {
     data: { user },
   } = await supabase.auth.getUser();

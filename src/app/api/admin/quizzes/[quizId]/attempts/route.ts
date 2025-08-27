@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 
 export async function POST(request: Request) {
   // 1) Extract `quizId` from the URL path.
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   const quizId = segments[4];
 
   // 2) Create your Supabase server‐side client
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
 
   // 3) (Optional) Grab a “dummy” user ID out of your profiles table, if you need one:
   const { data: profiles, error: profErr } = await supabase

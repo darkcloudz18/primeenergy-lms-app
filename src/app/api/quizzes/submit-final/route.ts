@@ -1,6 +1,6 @@
 // src/app/api/quizzes/submit-final/route.ts
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 
 type QuestionType = "multiple_choice" | "true_false" | "short_answer";
 
@@ -37,7 +37,7 @@ function isMC(a: Answer): a is AnswerMC {
 }
 
 export async function POST(req: Request) {
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
 
   try {
     const {

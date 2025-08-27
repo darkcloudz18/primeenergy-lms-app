@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 
 export async function PATCH(
   req: Request,
@@ -32,7 +32,7 @@ export async function DELETE(
   _req: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
   const { error } = await supabase
     .from("certificate_templates")
     .delete()

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 function isAdminRole(role: string | null | undefined) {
@@ -11,7 +11,7 @@ function isAdminRole(role: string | null | undefined) {
 export async function POST(req: Request) {
   try {
     // 1) Auth + role check (via RLS-safe server client)
-    const sb = createServerClient();
+    const sb = getSupabaseRSC();
     const {
       data: { user },
       error: userErr,

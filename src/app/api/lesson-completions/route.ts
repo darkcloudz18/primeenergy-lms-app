@@ -1,11 +1,11 @@
 // src/app/api/lesson-completions/route.ts
 
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 // import type { Lesson } from "@/lib/types";    <–– remove this if you never use it
 
 export async function GET(request: Request) {
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
   const userId = request.headers.get("x-user-id") ?? "";
   // if you do want the rows, then use `data`. Otherwise drop it.
 
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
   const { lesson_id, user_id } = (await request.json()) as {
     lesson_id: string;
     user_id: string;

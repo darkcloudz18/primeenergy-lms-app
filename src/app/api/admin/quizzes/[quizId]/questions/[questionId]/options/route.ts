@@ -1,6 +1,6 @@
 // src/app/api/admin/quizzes/[quizId]/questions/route.ts
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 
 export async function POST(request: Request) {
   // 1) Extract “quizId” from the URL path:
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   // parts = ["", "api", "admin", "quizzes", "abc123", "questions"]
   const quizId = parts[4]; // "abc123"
 
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
 
   // 2) Parse the JSON body (expecting { title, description, ordering? } or similar):
   let body: { title: string; description?: string; ordering?: number };

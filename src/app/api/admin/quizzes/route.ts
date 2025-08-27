@@ -1,10 +1,10 @@
 // src/app/api/admin/quizzes/route.ts
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 
 // GET /api/admin/quizzes  → list all quizzes
 export async function GET() {
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
   const { data, error } = await supabase.from("quizzes").select("*");
 
   if (error) {

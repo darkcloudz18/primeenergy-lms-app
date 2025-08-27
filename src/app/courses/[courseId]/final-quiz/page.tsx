@@ -1,5 +1,5 @@
 // src/app/courses/[courseId]/final-quiz/page.tsx
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 import LearningShell from "../modules/[moduleId]/lessons/[lessonId]/components/LearningShell";
 import { UIModule } from "../modules/[moduleId]/lessons/[lessonId]/components/Sidebar";
 import FinalQuizClient from "./FinalQuizClient";
@@ -18,7 +18,7 @@ type ModuleRow = {
 
 export default async function FinalQuizPage({ params }: PageProps) {
   const courseId = params.courseId;
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
 
   // user
   const {

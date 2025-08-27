@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 
 // adjust these if your table/logic differs
 async function hasFinishedCourse(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: ReturnType<typeof getSupabaseRSC>,
   userId: string,
   courseId: string
 ) {
@@ -71,7 +71,7 @@ async function hasFinishedCourse(
 }
 
 export async function POST(req: Request) {
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
 
   const {
     data: { user },

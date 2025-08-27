@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 
 export type AppProfile = {
   id: string;
@@ -9,7 +9,7 @@ export type AppProfile = {
 };
 
 export async function getProfileServer(): Promise<AppProfile | null> {
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
 
   const {
     data: { user },

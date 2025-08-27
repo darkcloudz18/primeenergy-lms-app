@@ -1,9 +1,9 @@
 // src/app/dashboard/page.tsx
 import { redirect } from "next/navigation";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 
 export default async function DashboardRedirect() {
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
 
   // who is logged in?
   const { data: userRes } = await supabase.auth.getUser();

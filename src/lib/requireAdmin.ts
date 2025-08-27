@@ -1,7 +1,7 @@
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 
 export async function requireAdmin(): Promise<boolean> {
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
   const { data: auth } = await supabase.auth.getUser();
   const user = auth?.user;
   if (!user) return false;

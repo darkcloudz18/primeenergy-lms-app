@@ -1,6 +1,6 @@
 // src/app/api/courses/route.ts
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 
 // ---------- Types ----------
 type OptionInput = { text: string; is_correct: boolean };
@@ -41,7 +41,7 @@ type CreateCoursePayload = {
 
 // ---------- GET ----------
 export async function GET() {
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
   const { data, error } = await supabase
     .from("courses")
     .select(
@@ -60,7 +60,7 @@ function hasAtLeastOneQuestion(q?: QuizInput | null) {
 }
 
 async function createModuleQuiz(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: ReturnType<typeof getSupabaseRSC>,
   moduleId: string,
   quiz: QuizInput
 ) {
@@ -116,7 +116,7 @@ async function createModuleQuiz(
 }
 
 async function createFinalQuiz(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: ReturnType<typeof getSupabaseRSC>,
   courseId: string,
   quiz: QuizInput
 ) {
@@ -172,7 +172,7 @@ async function createFinalQuiz(
 
 // ---------- POST ----------
 export async function POST(request: Request) {
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
 
   try {
     // Auth

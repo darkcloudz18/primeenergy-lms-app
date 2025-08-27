@@ -1,6 +1,9 @@
+// src/app/admin/users/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 type Role = "student" | "tutor" | "admin" | "super admin";
 type Status = "pending" | "active" | "suspended";
@@ -21,14 +24,18 @@ type Editable = {
   email: string;
   role: Role;
   status: Status;
+  password?: string;
 };
 
 const ROLE_OPTIONS: Role[] = ["student", "tutor", "admin", "super admin"];
 const STATUS_OPTIONS: Status[] = ["pending", "active", "suspended"];
 
 export default function AdminUsersPage() {
+  const supabase = createClientComponentClient();
+
   const [rows, setRows] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [query, setQuery] = useState("");
   const [filterRole, setFilterRole] = useState<Role | "">("");
   const [filterStatus, setFilterStatus] = useState<Status | "">("");
@@ -36,44 +43,72 @@ export default function AdminUsersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Editable | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Load all users via admin API
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/admin/users", { method: "GET" });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `HTTP ${res.status}`);
-        }
-        const json = (await res.json()) as { users: AdminUser[] };
-        if (!alive) return;
-        setRows(json.users ?? []);
-      } catch (err) {
-        console.error("AdminUsers: fetch error", err);
-        if (alive) setRows([]);
-      } finally {
-        if (alive) setLoading(false);
+  // fresh load (no HTTP cache)
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users?t=${Date.now()}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error || `HTTP ${res.status}`);
       }
-    })();
-    return () => {
-      alive = false;
-    };
+      const json = (await res.json()) as { users: AdminUser[] };
+      setRows(json.users ?? []);
+    } catch (e: unknown) {
+      console.error("AdminUsers: load error", e);
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => void load(), [load]);
+
+  // realtime sync for inserts/updates/deletes in public.profiles
+  useEffect(() => {
+    const channel = supabase
+      .channel("profiles-admin")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        (payload: RealtimePostgresChangesPayload<AdminUser>) => {
+          const type = payload.eventType;
+          if (type === "INSERT") {
+            const u = payload.new as AdminUser;
+            setRows((prev) => [u, ...prev.filter((r) => r.id !== u.id)]);
+          } else if (type === "UPDATE") {
+            const u = payload.new as AdminUser;
+            setRows((prev) => prev.map((r) => (r.id === u.id ? u : r)));
+          } else if (type === "DELETE") {
+            const u = payload.old as AdminUser;
+            setRows((prev) => prev.filter((r) => r.id !== u.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase]);
+
+  // editing helpers
   const startEdit = (u: AdminUser) => {
     setEditingId(u.id);
     setForm({
       first_name: u.first_name ?? "",
       last_name: u.last_name ?? "",
       email: u.email ?? "",
-      role: u.role ?? "student",
-      status: u.status ?? "pending",
+      role: (u.role ?? "student") as Role,
+      status: (u.status ?? "pending") as Status,
+      password: "",
     });
   };
-
   const cancelEdit = () => {
     setEditingId(null);
     setForm(null);
@@ -83,61 +118,64 @@ export default function AdminUsersPage() {
     if (!form) return;
     setSaving(true);
     try {
-      const payload = {
+      const body = {
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
         role: form.role,
         status: form.status,
-        email: form.email.trim(), // optional; server will update auth email
+        email: form.email.trim(),
+        password: form.password?.trim() ? form.password.trim() : undefined,
       };
 
       const res = await fetch(`/api/admin/users/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       });
-
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(err.error || `HTTP ${res.status}`);
       }
-
-      // optimistic update
-      setRows((prev) =>
-        prev.map((r) =>
-          r.id === id
-            ? {
-                ...r,
-                first_name: payload.first_name || null,
-                last_name: payload.last_name || null,
-                role: payload.role,
-                status: payload.status,
-                email: payload.email || r.email,
-              }
-            : r
-        )
-      );
-
+      await load();
       cancelEdit();
-    } catch (err) {
-      console.error("AdminUsers: save error", err);
-      alert((err as Error).message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Save failed";
+      alert(message);
     } finally {
       setSaving(false);
     }
   };
 
-  // Filters
+  const deleteUser = async (id: string) => {
+    if (!confirm("Delete this user? This removes auth + profile.")) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      setRows((prev) => prev.filter((r) => r.id !== id));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Delete failed";
+      alert(message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // filters
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       if (filterRole && (r.role ?? "") !== filterRole) return false;
       if (filterStatus && (r.status ?? "") !== filterStatus) return false;
-
       if (!q) return true;
+
       const full = `${r.first_name ?? ""} ${r.last_name ?? ""}`
         .toLowerCase()
         .trim();
+
       return (
         full.includes(q) ||
         (r.email ?? "").toLowerCase().includes(q) ||
@@ -149,9 +187,17 @@ export default function AdminUsersPage() {
   }, [rows, query, filterRole, filterStatus]);
 
   return (
-    <main className="max-w-6xl mx-auto p-6 space-y-6">
+    <main className="max-w-8xl mx-auto p-6 space-y-6">
       <header className="space-y-4">
-        <h1 className="text-2xl font-semibold">Users</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">Users</h1>
+          <button
+            onClick={load}
+            className="px-3 py-1 rounded bg-white border hover:bg-gray-50"
+          >
+            Refresh
+          </button>
+        </div>
 
         {/* Filter bar */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-4 rounded-lg shadow">
@@ -203,6 +249,7 @@ export default function AdminUsersPage() {
               <th className="text-right px-4 py-3">Actions</th>
             </tr>
           </thead>
+
           {loading ? (
             <tbody>
               <tr>
@@ -335,9 +382,20 @@ export default function AdminUsersPage() {
 
                     {/* Actions */}
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-2 items-center">
                         {isEditing ? (
                           <>
+                            <input
+                              className="border rounded px-2 py-1 w-48"
+                              type="password"
+                              placeholder="New password (optional)"
+                              value={form?.password ?? ""}
+                              onChange={(e) =>
+                                setForm((f) =>
+                                  f ? { ...f, password: e.target.value } : f
+                                )
+                              }
+                            />
                             <button
                               className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300"
                               onClick={cancelEdit}
@@ -354,12 +412,21 @@ export default function AdminUsersPage() {
                             </button>
                           </>
                         ) : (
-                          <button
-                            className="px-3 py-1 rounded bg-white border hover:bg-gray-50"
-                            onClick={() => startEdit(u)}
-                          >
-                            Edit
-                          </button>
+                          <>
+                            <button
+                              className="px-3 py-1 rounded bg-white border hover:bg-gray-50"
+                              onClick={() => startEdit(u)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                              onClick={() => deleteUser(u.id)}
+                              disabled={deletingId === u.id}
+                            >
+                              {deletingId === u.id ? "Deleting…" : "Delete"}
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>

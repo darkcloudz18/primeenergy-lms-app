@@ -1,7 +1,7 @@
 // src/app/api/quizzes/[quizId]/attempts/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 import { PostgrestError } from "@supabase/supabase-js"; // Import for Supabase specific errors
 
 // Define a more specific type for the expected profile structure
@@ -32,7 +32,7 @@ export async function POST(
   const { quizId } = routeContext.params;
 
   // 2) Create a Supabase server‐side client
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
 
   // 3) (Optional) Grab a “dummy” profile so we can insert a fake user_id
   let dummyUserId: string;

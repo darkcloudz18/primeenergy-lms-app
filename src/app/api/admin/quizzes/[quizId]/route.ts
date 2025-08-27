@@ -1,6 +1,6 @@
 // src/app/api/admin/quizzes/[quizId]/route.ts
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 
 export async function GET(request: Request) {
   // 1) Extract quizId from the URL path
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const quizId = segments[4]; // index 4 is [quizId]
 
   // 2) Fetch that quiz
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
   const { data, error } = await supabase
     .from("quizzes")
     .select("*")

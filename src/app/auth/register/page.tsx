@@ -1,76 +1,37 @@
 // src/app/auth/register/page.tsx
 "use client";
-
 import { useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default function RegisterPage() {
   const supabase = createClientComponentClient();
-
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
+    if (password !== confirm) return setError("Passwords do not match");
 
     setLoading(true);
-
-    // 1) sign up
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp(
-      {
-        email,
-        password,
-      }
-    );
-
-    if (signUpError) {
-      setError(signUpError.message);
-      setLoading(false);
-      return;
-    }
-
-    // 2) get the new user's ID
-    const userId = signUpData?.user?.id;
-    if (!userId) {
-      setError("Could not determine user ID.");
-      setLoading(false);
-      return;
-    }
-
-    // 3) call your route to insert into profiles
-    const resp = await fetch("/api/create-profile", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        firstName,
-        lastName,
-        email,
-        role: "student",
-      }),
+    const { error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        // add redirect if you use email confirmations:
+        // emailRedirectTo: `${location.origin}/auth/callback`,
+        data: { first_name: firstName, last_name: lastName }, // <-- trigger reads this
+      },
     });
 
-    if (!resp.ok) {
-      const body = await resp.json().catch(() => ({}));
-      setError(body.error || `Profile creation failed: HTTP ${resp.status}`);
-      setLoading(false);
-      return;
-    }
-
-    // 4) success!
-    setSubmitted(true);
+    if (signUpError) setError(signUpError.message);
+    else setSubmitted(true);
     setLoading(false);
   };
 
@@ -80,8 +41,7 @@ export default function RegisterPage() {
         <div className="bg-white p-8 rounded shadow-md max-w-md w-full">
           <h1 className="text-2xl font-bold mb-4">Registration Submitted</h1>
           <p>
-            Thanks <strong>{firstName}</strong>! Your account is pending
-            approval.
+            Thanks <strong>{firstName}</strong>! Please check your email.
           </p>
         </div>
       </div>
@@ -92,48 +52,46 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-start mt-10 justify-center bg-gray-100 px-4">
       <div className="bg-white rounded-lg shadow-md w-full max-w-md p-8">
         <h1 className="text-2xl font-semibold mb-6">Register</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={onSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
-              type="text"
+              className="border px-3 py-2 rounded w-full"
               placeholder="First name"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               required
-              className="border px-3 py-2 rounded w-full"
             />
             <input
-              type="text"
+              className="border px-3 py-2 rounded w-full"
               placeholder="Last name"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               required
-              className="border px-3 py-2 rounded w-full"
             />
           </div>
           <input
+            className="border px-3 py-2 rounded w-full"
             type="email"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="border px-3 py-2 rounded w-full"
           />
           <input
+            className="border px-3 py-2 rounded w-full"
             type="password"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="border px-3 py-2 rounded w-full"
           />
           <input
+            className="border px-3 py-2 rounded w-full"
             type="password"
             placeholder="Confirm password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
             required
-            className="border px-3 py-2 rounded w-full"
           />
 
           <button

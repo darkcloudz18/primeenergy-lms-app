@@ -1,6 +1,6 @@
 // src/app/api/attempts/[attemptId]/responses/route.ts
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 import { PDFDocument, rgb } from "pdf-lib";
 import fs from "fs";
 import path from "path";
@@ -28,7 +28,7 @@ export async function POST(
     );
   }
 
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
 
   // 3️⃣ Load the attempt (to get quiz_id + user_id)
   const { data: attempt, error: atErr } = await supabase

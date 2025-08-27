@@ -1,49 +1,52 @@
 "use client";
 
-import { useRef, useState } from "react";
-import Image from "next/image";
+import { useState } from "react";
 
 type Props = {
   courseId: string;
-  inputName: string; // the name attribute your form expects (e.g. "image_url")
-  label?: string;
   defaultUrl?: string;
-  bucket?: string; // defaults to "course-images"
+  /** Name of the hidden field the page form expects (e.g. "image_url") */
+  inputName: string;
+  label?: string;
+  /** Supabase Storage bucket name, e.g. "course-images" */
+  bucket: string;
 };
 
 export default function CourseImageUpload({
   courseId,
-  inputName,
-  label = "Course image",
   defaultUrl = "",
-  bucket = "course-images",
+  inputName,
+  label = "Image",
+  bucket,
 }: Props) {
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const [preview, setPreview] = useState<string>(defaultUrl);
+  const [url, setUrl] = useState(defaultUrl);
   const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  async function handleUpload(file: File) {
-    const form = new FormData();
-    form.append("file", file);
-    form.append("courseId", courseId);
-    form.append("bucket", bucket);
+  async function onChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
+    setErr(null);
     setUploading(true);
     try {
+      const fd = new FormData();
+      fd.append("courseId", courseId);
+      fd.append("bucket", bucket);
+      fd.append("file", file);
+
       const res = await fetch("/api/admin/courses/upload-image", {
         method: "POST",
-        body: form,
+        body: fd, // don't set Content-Type; the browser sets boundary
       });
+
+      // This route ALWAYS returns JSON (success or error)
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Upload failed");
-      setPreview(json.publicUrl);
-      // write into the form’s hidden input so your existing POST saves it
-      const hidden = document.querySelector<HTMLInputElement>(
-        `input[name="${inputName}"]`
-      );
-      if (hidden) hidden.value = json.publicUrl;
+
+      setUrl(json.url as string);
     } catch (e) {
-      alert((e as Error).message);
+      setErr((e as Error).message);
     } finally {
       setUploading(false);
     }
@@ -52,38 +55,37 @@ export default function CourseImageUpload({
   return (
     <div>
       <label className="block font-medium mb-1">{label}</label>
-      {/* Hidden field used by the server form submit */}
-      <input type="hidden" name={inputName} defaultValue={defaultUrl} />
 
-      <div className="flex items-center gap-4">
-        <div className="relative w-40 h-24 rounded border overflow-hidden bg-gray-50">
-          {preview ? (
-            <Image
-              src={preview}
-              alt="Course image"
-              fill
-              className="object-cover"
+      {/* Hidden field so your existing form POST includes the image URL */}
+      <input type="hidden" name={inputName} value={url} readOnly />
+
+      <div className="flex items-start gap-4">
+        <div className="h-28 w-44 rounded border bg-gray-50 overflow-hidden flex items-center justify-center">
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={url}
+              alt="Course"
+              className="h-full w-full object-cover"
             />
           ) : (
-            <div className="w-full h-full grid place-items-center text-xs text-gray-400">
-              No image
-            </div>
+            <span className="text-gray-400 text-sm">No image</span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="space-y-2">
           <input
-            ref={fileRef}
             type="file"
             accept="image/*"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleUpload(f);
-            }}
+            onChange={onChange}
             disabled={uploading}
           />
-          {uploading && (
-            <span className="text-sm text-gray-500">Uploading…</span>
+          {uploading && <div className="text-xs text-gray-500">Uploading…</div>}
+          {err && <div className="text-xs text-red-600">{err}</div>}
+          {url && (
+            <div className="text-xs text-gray-500 break-all max-w-sm">
+              {url}
+            </div>
           )}
         </div>
       </div>
