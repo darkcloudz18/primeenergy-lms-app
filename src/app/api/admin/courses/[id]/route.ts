@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { getSupabaseRSC } from "@/lib/supabase-rsc";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> } // ← Promise<{ id: strin }>
 ): Promise<NextResponse> {
   const { id } = await params; // ← await the params
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
 
   const { data, error } = await supabase
     .from("courses")
@@ -26,7 +26,7 @@ export async function PUT(
 ): Promise<NextResponse> {
   const { id } = await params;
   const updates = await request.json();
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
 
   const { data, error } = await supabase
     .from("courses")

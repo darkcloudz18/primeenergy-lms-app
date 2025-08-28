@@ -23,7 +23,6 @@ export default function CourseContent({
   courseId,
   modules,
   isEnrolled,
-  courseTitle,
   finalQuizPath,
 }: Props) {
   const supabase = useSupabaseClient();

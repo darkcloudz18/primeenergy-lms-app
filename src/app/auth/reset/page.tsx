@@ -19,7 +19,7 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     // When user clicks the email link, Supabase includes a recovery access token in the URL.
     // The auth-helpers will hydrate session on first call; we then show the form.
-    let unsub = supabase.auth.onAuthStateChange((event) => {
+    const unsub = supabase.auth.onAuthStateChange((event) => {
       // PASSWORD_RECOVERY or SIGNED_IN after link
       if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
         setReady(true);
