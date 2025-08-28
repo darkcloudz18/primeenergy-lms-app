@@ -5,7 +5,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
   const body = await req.json();
 
   // If activating, first set all others to false
