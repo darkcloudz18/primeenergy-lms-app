@@ -2,7 +2,7 @@
 import Head from "next/head";
 import Link from "next/link";
 import Image from "next/image";
-import { GetServerSideProps } from "next";
+import type { GetServerSideProps } from "next";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 type CourseCard = {
@@ -17,11 +17,11 @@ type CourseCard = {
 };
 
 export const getServerSideProps: GetServerSideProps = async () => {
+  // If you have `is_featured` and want true “featured”, add `.eq("is_featured", true)`
   const { data, error } = await supabaseAdmin
     .from("courses")
-    .select(
-      "id, title, description, image_url, category, level, tag, created_at"
-    )
+    .select("id,title,description,image_url,category,level,tag,created_at")
+    .eq("archived", false) // ← exclude archived at the source
     .order("created_at", { ascending: false })
     .limit(3);
 
@@ -66,7 +66,7 @@ export default function Home({
           </div>
         </section>
 
-        {/* Featured Courses (latest 3) */}
+        {/* Featured Courses (latest 3 non-archived) */}
         <section className="py-16 px-4 bg-white">
           <div className="max-w-6xl mx-auto text-center">
             <h2 className="text-3xl font-semibold mb-10">Featured Courses</h2>
@@ -99,7 +99,6 @@ export default function Home({
                       key={c.id}
                       className="border rounded-lg p-6 shadow hover:shadow-md transition text-left"
                     >
-                      {/* Thumbnail */}
                       {hasValidImage ? (
                         <Image
                           src={c.image_url!}
