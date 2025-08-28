@@ -16,7 +16,7 @@ export async function GET() {
 // POST /api/admin/quizzes → create a new quiz
 export async function POST(request: Request) {
   const payload = await request.json();
-  const supabase = createServerClient();
+  const supabase = getSupabaseRSC();
   const { data, error } = await supabase
     .from("quizzes")
     .insert(payload)
