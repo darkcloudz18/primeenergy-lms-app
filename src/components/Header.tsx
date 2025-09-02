@@ -184,14 +184,16 @@ export default function Header() {
     return displayName.split(" ")[0] || displayName;
   }, [displayName]);
 
+  // in your Header.tsx (client)
   const handleSignOut = async () => {
     try {
-      // IMPORTANT: let the server clear cookies (single source of truth)
+      // clear client-side memory/session
+      await supabase.auth.signOut({ scope: "local" });
+      // clear httpOnly cookies on server
       await fetch("/auth/signout", { method: "POST", credentials: "include" });
     } finally {
-      // Hard redirect to break any client-side stale state
+      // hard redirect to avoid any stale in-memory state
       window.location.href = "/auth/login";
-      // or: router.replace('/auth/login'); window.location.reload();
     }
   };
 
