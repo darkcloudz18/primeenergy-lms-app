@@ -185,8 +185,14 @@ export default function Header() {
   }, [displayName]);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.push("/auth/login");
+    try {
+      // IMPORTANT: let the server clear cookies (single source of truth)
+      await fetch("/auth/signout", { method: "POST", credentials: "include" });
+    } finally {
+      // Hard redirect to break any client-side stale state
+      window.location.href = "/auth/login";
+      // or: router.replace('/auth/login'); window.location.reload();
+    }
   };
 
   const navItems: { label: string; href: string }[] = [
