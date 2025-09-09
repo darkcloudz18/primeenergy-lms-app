@@ -82,7 +82,7 @@ export default function TutorDashboardPage() {
     (async () => {
       setLoading(true);
 
-      // 0) Greeting from profiles.first_name (fallback to email local-part)
+      // 0) Greeting
       {
         const { data, error } = await supabase
           .from("profiles")
@@ -128,7 +128,7 @@ export default function TutorDashboardPage() {
 
       const courseIds = courseList.map((c) => c.id);
 
-      // 2) Enrollments for these courses (include created_at for chart)
+      // 2) Enrollments
       const { data: enrRows, error: enrErr } = await supabase
         .from("enrollments")
         .select("course_id, user_id, created_at")
@@ -139,7 +139,7 @@ export default function TutorDashboardPage() {
       }
       const enrollments = (enrRows ?? []) as EnrollmentRow[];
 
-      // counts by course & distinct students
+      // counts
       const enrolledByCourse = new Map<string, number>();
       const distinctStudents = new Set<string>();
       enrollments.forEach((e) => {
@@ -151,7 +151,7 @@ export default function TutorDashboardPage() {
       });
       setTotalStudentsDistinct(distinctStudents.size);
 
-      // 3) Modules for these courses
+      // 3) Modules
       const { data: modRows, error: modErr } = await supabase
         .from("modules")
         .select("id, course_id")
@@ -163,7 +163,7 @@ export default function TutorDashboardPage() {
       const modules = (modRows ?? []) as ModuleRow[];
       const moduleIds = modules.map((m) => m.id);
 
-      // 4) Lessons for those modules
+      // 4) Lessons
       let lessons: LessonRow[] = [];
       if (moduleIds.length > 0) {
         const { data: lesRows, error: lesErr } = await supabase
@@ -212,11 +212,11 @@ export default function TutorDashboardPage() {
       const archived = built.filter((c) => c.archived);
       setCourses([...active, ...archived]);
 
-      // 6) Chart data: last 30 days by day
+      // 6) Chart data
       const last30 = buildLastNDays(30);
       const counts = new Map<string, number>(last30.map((d) => [d, 0]));
       enrollments.forEach((e) => {
-        const day = e.created_at?.slice(0, 10); // YYYY-MM-DD
+        const day = e.created_at?.slice(0, 10);
         if (counts.has(day)) counts.set(day, (counts.get(day) ?? 0) + 1);
       });
       setEnrollmentsByDay(
@@ -240,7 +240,6 @@ export default function TutorDashboardPage() {
   }
 
   const initial = displayName.charAt(0).toUpperCase() || "T";
-
   const maxCount = Math.max(1, ...enrollmentsByDay.map((d) => d.count));
 
   return (
@@ -346,7 +345,6 @@ export default function TutorDashboardPage() {
             })}
           </div>
         )}
-        {/* X-axis labels: show 6 evenly spaced ticks */}
         {enrollmentsByDay.length > 0 && (
           <div className="mt-2 text-xs text-gray-600 grid grid-cols-6">
             {axisTicks(enrollmentsByDay, 6).map((t) => (
@@ -372,18 +370,18 @@ export default function TutorDashboardPage() {
           </p>
         ) : (
           <ul className="divide-y">
-            {courses.map((c) => {
+            {courses.map((course) => {
               const hasImage =
-                typeof c.image_url === "string" &&
-                /^https?:\/\//.test(c.image_url);
+                typeof course.image_url === "string" &&
+                /^https?:\/\//.test(course.image_url);
 
               return (
-                <li key={c.id} className="p-4 flex gap-4 items-center">
+                <li key={course.id} className="p-4 flex gap-4 items-center">
                   <div className="relative h-20 w-32 flex-shrink-0 rounded overflow-hidden bg-gray-100">
                     {hasImage && (
                       <Image
-                        src={c.image_url!}
-                        alt={c.title}
+                        src={course.image_url!}
+                        alt={course.title}
                         fill
                         className="object-cover"
                         sizes="128px"
@@ -394,12 +392,12 @@ export default function TutorDashboardPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <Link
-                        href={`/courses/${c.id}`}
+                        href={`/courses/${course.id}`}
                         className="font-medium hover:text-green-700"
                       >
-                        {c.title}
+                        {course.title}
                       </Link>
-                      {c.archived ? (
+                      {course.archived ? (
                         <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
                           Archived
                         </span>
@@ -411,21 +409,22 @@ export default function TutorDashboardPage() {
                     </div>
 
                     <p className="text-sm text-gray-600 mt-1">
-                      {c.enrolled} enrolled • {c.lessons} lesson
-                      {c.lessons === 1 ? "" : "s"}
+                      {course.enrolled} enrolled • {course.lessons} lesson
+                      {course.lessons === 1 ? "" : "s"}
                     </p>
                   </div>
 
+                  {/* Actions — ONE Edit button per row */}
                   <div className="flex gap-2">
                     <Link
-                      href={`/courses/${c.id}`}
+                      href={`/courses/${course.id}`}
                       className="text-sm px-3 py-2 rounded border hover:bg-gray-50"
                     >
                       View
                     </Link>
                     <Link
-                      href={`/dashboard/tutor/courses/${c.id}/edit`}
-                      className="text-sm px-3 py-2 rounded border hover:bg-gray-50"
+                      href={`/dashboard/tutor/courses/edit/${course.id}`}
+                      className="text-sm px-3 py-2 rounded bg-green-600 text-white hover:bg-green-700"
                     >
                       Edit
                     </Link>

@@ -2,6 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useMemo } from "react";
+import { basicSanitize } from "@/lib/sanitize";
 import {
   UsersIcon,
   CheckBadgeIcon,
@@ -41,6 +43,11 @@ export default function CourseHeader({
   onToggleEnroll,
   firstLessonPath,
 }: Props) {
+  const safeDesc = useMemo(
+    () => basicSanitize(description ?? ""),
+    [description]
+  );
+
   return (
     <header className="grid grid-cols-3 gap-6 items-start bg-white p-6 rounded shadow">
       {/* Left: Title / Image / Description */}
@@ -52,7 +59,11 @@ export default function CourseHeader({
           </div>
         )}
         {description && (
-          <p className="text-gray-700 leading-relaxed">{description}</p>
+          <div
+            className="prose max-w-none text-gray-700 mt-3"
+            // render the sanitized HTML instead of showing raw tags
+            dangerouslySetInnerHTML={{ __html: safeDesc }}
+          />
         )}
       </div>
 

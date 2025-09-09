@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSupabaseClient, useSession } from "@supabase/auth-helpers-react";
+import { postJSON } from "@/lib/http"; // ⬅️ add this
 
 type Course = {
   id: string;
@@ -19,18 +20,17 @@ type Course = {
   archived?: boolean | null;
 };
 
-type ArchiveApiResponse = { ok?: true; error?: string };
-
 export default function TutorMyCoursesPage() {
   const supabase = useSupabaseClient();
   const session = useSession();
   const user = session?.user ?? null;
+  const userId = user?.id ?? null; // ⬅️ stable dep
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyIds, setBusyIds] = useState<Record<string, boolean>>({});
 
-  // Filters
+  // Filters...
   const [filterTitle, setFilterTitle] = useState("");
   const [filterCategory, setFilterCategory] = useState<string | "">("");
   const [filterLevel, setFilterLevel] = useState<string | "">("");
@@ -44,7 +44,7 @@ export default function TutorMyCoursesPage() {
     let canceled = false;
 
     async function run() {
-      if (!user) {
+      if (!userId) {
         setLoading(false);
         return;
       }
@@ -55,7 +55,7 @@ export default function TutorMyCoursesPage() {
         .select(
           "id, title, description, image_url, category, level, tag, created_at, instructor_id, archived"
         )
-        .eq("instructor_id", user.id)
+        .eq("instructor_id", userId)
         .order("created_at", { ascending: false });
 
       if (canceled) return;
@@ -67,7 +67,6 @@ export default function TutorMyCoursesPage() {
         const rows = (data ?? []) as Course[];
         setCourses(rows);
 
-        // Build filter option sets
         const cats = new Set<string>();
         const levs = new Set<string>();
         const tgs = new Set<string>();
@@ -88,7 +87,7 @@ export default function TutorMyCoursesPage() {
     return () => {
       canceled = true;
     };
-  }, [supabase, user?.id, user]);
+  }, [supabase, userId]); // ⬅️ fixed deps
 
   const filtered = useMemo(() => {
     return courses.filter((course) => {
@@ -107,19 +106,11 @@ export default function TutorMyCoursesPage() {
   const setBusy = (id: string, v: boolean) =>
     setBusyIds((prev) => ({ ...prev, [id]: v }));
 
-  // Actions
+  // Actions (use tutor endpoints + postJSON)
   const doArchive = async (id: string) => {
     setBusy(id, true);
     try {
-      const res = await fetch("/api/admin/archive-course", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ courseId: id }),
-      });
-      const json = (await res.json()) as ArchiveApiResponse;
-      if (!res.ok || json.error)
-        throw new Error(json.error || "Archive failed");
+      await postJSON("/api/tutor/archive-course", { courseId: id });
       setCourses((prev) =>
         prev.map((c) => (c.id === id ? { ...c, archived: true } : c))
       );
@@ -133,15 +124,9 @@ export default function TutorMyCoursesPage() {
   const doUnarchive = async (id: string) => {
     setBusy(id, true);
     try {
-      const res = await fetch("/api/admin/unarchive-course", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ courseId: id }),
+      await postJSON("/api/tutor/unarchive-course", {
+        courseId: id,
       });
-      const json = (await res.json()) as ArchiveApiResponse;
-      if (!res.ok || json.error)
-        throw new Error(json.error || "Unarchive failed");
       setCourses((prev) =>
         prev.map((c) => (c.id === id ? { ...c, archived: false } : c))
       );
@@ -156,14 +141,7 @@ export default function TutorMyCoursesPage() {
     if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
     setBusy(id, true);
     try {
-      const res = await fetch("/api/admin/delete-course", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ courseId: id }),
-      });
-      const json = (await res.json()) as ArchiveApiResponse;
-      if (!res.ok || json.error) throw new Error(json.error || "Delete failed");
+      await postJSON("/api/tutor/delete-course", { courseId: id });
       setCourses((prev) => prev.filter((c) => c.id !== id));
     } catch (e) {
       alert((e as Error).message);
@@ -331,8 +309,9 @@ export default function TutorMyCoursesPage() {
                   )}
 
                   <div className="pt-3 flex flex-wrap gap-2">
+                    {/* Tutor edit route */}
                     <Link
-                      href={`/admin/courses/edit/${course.id}`}
+                      href={`/dashboard/tutor/courses/edit/${course.id}`}
                       className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
                     >
                       Edit

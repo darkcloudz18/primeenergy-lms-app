@@ -1,4 +1,3 @@
-// src/app/dashboard/tutor/courses/edit/[courseId]/final-quiz/[quizId]/page.tsx
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
@@ -8,7 +7,6 @@ import QuizEditor, {
   EditorQuiz,
   EditorQuestion,
 } from "@/components/QuizEditor";
-
 function isAdminRole(role?: string | null) {
   const r = (role ?? "").toLowerCase().trim();
   return r === "admin" || r === "super admin";
@@ -27,29 +25,28 @@ export default async function TutorFinalQuizEditPage({ params }: PageProps) {
   } = await sb.auth.getUser();
   if (!user) return <div className="p-6 text-red-600">Not authenticated.</div>;
 
-  // verify course and ownership (admin or instructor)
-  const { data: course, error: courseErr } = await supabaseAdmin
+  // verify course and ownership
+  const { data: course } = await supabaseAdmin
     .from("courses")
     .select("id,instructor_id,title")
     .eq("id", courseId)
     .maybeSingle();
+  if (!course) return <div className="p-6 text-red-600">Course not found.</div>;
 
-  if (courseErr || !course) {
-    return <div className="p-6 text-red-600">Course not found.</div>;
+  let isAdmin = false;
+  {
+    const { data: prof } = await sb
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    isAdmin = isAdminRole(prof?.role);
   }
-
-  const { data: prof } = await sb
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-  const isAdmin = isAdminRole(prof?.role);
-
   if (!isAdmin && course.instructor_id !== user.id) {
     return <div className="p-6 text-red-600">Forbidden.</div>;
   }
 
-  // load quiz (must be final: module_id null + course matches)
+  // load quiz (must be final => module_id null and course match)
   const { data: quizRow, error: qErr } = await supabaseAdmin
     .from("quizzes")
     .select("id,course_id,module_id,title,description,passing_score")
@@ -81,12 +78,10 @@ export default async function TutorFinalQuizEditPage({ params }: PageProps) {
     .order("ordering", { ascending: true });
 
   const questionIds = (qns ?? []).map((q) => q.id);
-
   const optsMap = new Map<
     string,
     { id: string; text: string; is_correct: boolean; ordering: number }[]
   >();
-
   if (questionIds.length) {
     const { data: opts } = await supabaseAdmin
       .from("quiz_options")
@@ -130,7 +125,7 @@ export default async function TutorFinalQuizEditPage({ params }: PageProps) {
         initialQuestions={initialQuestions}
         courseId={courseId}
         moduleId={null}
-        afterSaveBase="/admin"
+        afterSaveBase="/dashboard/tutor"
       />
     </main>
   );

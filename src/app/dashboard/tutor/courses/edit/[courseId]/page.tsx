@@ -1,40 +1,21 @@
-// src/app/admin/courses/edit/[courseId]/page.tsx
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "default-no-store";
+
 import React from "react";
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getSupabaseRSC } from "@/lib/supabase-rsc";
 import type { Course, Module, Lesson, QuizEntity } from "@/lib/types";
-import CourseImageUpload from "./CourseImageUpload";
+import CourseImageUpload from "@/components/CourseImageUpload";
 
 interface PageProps {
   params: { courseId: string };
 }
 
-function isAdminRole(role?: string | null) {
-  const r = (role ?? "").toLowerCase().trim();
-  return r === "admin" || r === "super admin";
-}
-
-export default async function EditCoursePage({ params }: PageProps) {
+export default async function TutorEditCoursePage({ params }: PageProps) {
   const { courseId } = params;
 
-  // ── Who is viewing? (to show admin-only fields) ──────────────────────────
-  const sb = getSupabaseRSC();
-  const {
-    data: { user },
-  } = await sb.auth.getUser();
-
-  let isAdmin = false;
-  if (user) {
-    const { data: prof } = await sb
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    isAdmin = isAdminRole(prof?.role);
-  }
-
-  // ─── Fetch the course ─────────────────────────────────────────
+  // ─── Course ─────────────────────────────────────────
   const courseRes = await supabaseAdmin
     .from("courses")
     .select(
@@ -54,7 +35,7 @@ export default async function EditCoursePage({ params }: PageProps) {
   }
   const course = courseRes.data as Course;
 
-  // ─── Fetch modules ────────────────────────────────────────────
+  // ─── Modules ────────────────────────────────────────
   const modsRes = await supabaseAdmin
     .from("modules")
     .select("id, course_id, title, ordering, created_at")
@@ -62,23 +43,23 @@ export default async function EditCoursePage({ params }: PageProps) {
     .order("ordering", { ascending: true });
   const modules = (modsRes.data || []) as Module[];
 
-  // ─── Fetch lessons for those modules ──────────────────────────
+  // ─── Lessons ────────────────────────────────────────
   const modIds = modules.map((m) => m.id);
   const lesRes = await supabaseAdmin
     .from("lessons")
     .select("id, module_id, title, ordering, created_at")
-    .in("module_id", modIds.length ? modIds : ["_none_"]) // safe when no modules
+    .in("module_id", modIds.length ? modIds : ["_none_"])
     .order("ordering", { ascending: true });
   const lessons = (lesRes.data || []) as Lesson[];
 
-  // ─── Fetch quizzes attached to modules ────────────────────────
+  // ─── Module quizzes ─────────────────────────────────
   const qRes = await supabaseAdmin
     .from("quizzes")
     .select("id, module_id, title")
     .in("module_id", modIds.length ? modIds : ["_none_"]);
   const moduleQuizzes = (qRes.data || []) as QuizEntity[];
 
-  // ─── Fetch final quiz (module_id = null) ─────────────────────
+  // ─── Final quiz ─────────────────────────────────────
   const finalRes = await supabaseAdmin
     .from("quizzes")
     .select("id, title")
@@ -87,13 +68,14 @@ export default async function EditCoursePage({ params }: PageProps) {
     .maybeSingle();
   const finalQuiz = (finalRes.data || null) as QuizEntity | null;
 
-  const redirectTo = `/admin/courses/edit/${courseId}`;
+  // after save, stay on the tutor edit route (not admin)
+  const redirectTo = `/dashboard/tutor/courses/edit/${courseId}`;
 
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-8 bg-gray-50">
       <h1 className="text-3xl font-semibold">Edit Course</h1>
 
-      {/* Course form (posts to the new unified endpoint) */}
+      {/* Course form (same server endpoint used by admin; redirect_to keeps tutors in their area) */}
       <form
         action="/api/courses/update"
         method="POST"
@@ -123,13 +105,16 @@ export default async function EditCoursePage({ params }: PageProps) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {(["category", "level", "tag"] as const).map((field) => (
+          {(
+            ["category", "level", "tag"] as Array<"category" | "level" | "tag">
+          ).map((field) => (
             <div key={field}>
               <label className="block font-medium mb-1 capitalize">
                 {field}
               </label>
               <input
                 name={field}
+                // `course[field]` is string | null → normalize to string
                 defaultValue={course[field] ?? ""}
                 className="w-full border rounded px-3 py-2"
               />
@@ -137,7 +122,6 @@ export default async function EditCoursePage({ params }: PageProps) {
           ))}
         </div>
 
-        {/* Image upload → writes public URL into hidden input named "image_url" */}
         <CourseImageUpload
           courseId={course.id}
           defaultUrl={course.image_url ?? ""}
@@ -146,38 +130,7 @@ export default async function EditCoursePage({ params }: PageProps) {
           bucket="course-images"
         />
 
-        {/* Admin-only fields */}
-        {isAdmin && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-            <div className="flex items-center gap-2">
-              <input
-                id="archived"
-                type="checkbox"
-                name="archived"
-                defaultChecked={!!course.archived}
-                className="h-4 w-4"
-              />
-              <label htmlFor="archived" className="font-medium">
-                Archived
-              </label>
-            </div>
-
-            <div>
-              <label className="block font-medium mb-1">
-                Instructor ID (owner)
-              </label>
-              <input
-                name="instructor_id"
-                defaultValue={course.instructor_id ?? ""}
-                className="w-full border rounded px-3 py-2"
-                placeholder="UUID of instructor (optional)"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Leave blank to keep current owner.
-              </p>
-            </div>
-          </div>
-        )}
+        {/* No admin-only controls here (archive/owner change) */}
 
         <button
           type="submit"
@@ -193,12 +146,15 @@ export default async function EditCoursePage({ params }: PageProps) {
         <div className="border-b pb-4">
           <h2 className="text-2xl font-semibold">Final Quiz</h2>
           {finalQuiz ? (
-            <Link href={`/admin/courses/edit/${courseId}/final-quiz/anything`}>
+            <Link
+              href={`/dashboard/tutor/courses/edit/${courseId}/final-quiz/${finalQuiz.id}`}
+              className="text-blue-600 hover:underline text-sm"
+            >
               Edit Final Quiz
             </Link>
           ) : (
             <Link
-              href={`/admin/courses/edit/${courseId}/final-quiz/new`}
+              href={`/dashboard/tutor/courses/edit/${courseId}/final-quiz/new`}
               className="text-green-600 hover:underline text-sm"
             >
               + Add Final Quiz
@@ -218,7 +174,7 @@ export default async function EditCoursePage({ params }: PageProps) {
                   Module {mod.ordering}: {mod.title}
                 </h3>
                 <Link
-                  href={`/admin/courses/edit/${courseId}/modules/${mod.id}`}
+                  href={`/dashboard/tutor/courses/edit/${courseId}/modules/${mod.id}`}
                   className="text-blue-600 hover:underline text-sm"
                 >
                   Edit Module
@@ -230,7 +186,7 @@ export default async function EditCoursePage({ params }: PageProps) {
                 {modLessons.map((lesson) => (
                   <li key={lesson.id}>
                     <Link
-                      href={`/admin/courses/edit/${courseId}/modules/${mod.id}/lessons/${lesson.id}`}
+                      href={`/dashboard/tutor/courses/edit/${courseId}/modules/${mod.id}/lessons/${lesson.id}`}
                       className="text-gray-800 hover:text-blue-600"
                     >
                       {lesson.ordering}. {lesson.title}
@@ -239,7 +195,7 @@ export default async function EditCoursePage({ params }: PageProps) {
                 ))}
                 <li>
                   <Link
-                    href={`/admin/courses/edit/${courseId}/modules/${mod.id}/lessons/new`}
+                    href={`/dashboard/tutor/courses/edit/${courseId}/modules/${mod.id}/lessons/new`}
                     className="text-green-600 hover:underline text-sm"
                   >
                     + Add Lesson
@@ -251,14 +207,14 @@ export default async function EditCoursePage({ params }: PageProps) {
               <div>
                 {modQuiz ? (
                   <Link
-                    href={`/admin/courses/edit/${courseId}/modules/${mod.id}/quiz/${modQuiz.id}`}
+                    href={`/dashboard/tutor/courses/edit/${courseId}/modules/${mod.id}/quiz/${modQuiz.id}`}
                     className="text-blue-600 hover:underline text-sm"
                   >
                     Edit Module Quiz
                   </Link>
                 ) : (
                   <Link
-                    href={`/admin/courses/edit/${courseId}/modules/${mod.id}/quiz/new`}
+                    href={`/dashboard/tutor/courses/edit/${courseId}/modules/${mod.id}/quiz/new`}
                     className="text-green-600 hover:underline text-sm"
                   >
                     + Add Module Quiz
@@ -271,10 +227,10 @@ export default async function EditCoursePage({ params }: PageProps) {
           );
         })}
 
-        {/* + Add Module */}
+        {/* Add Module */}
         <div>
           <Link
-            href={`/admin/courses/edit/${courseId}/modules/new`}
+            href={`/dashboard/tutor/courses/edit/${courseId}/modules/new`}
             className="text-green-600 hover:underline text-sm"
           >
             + Add Module

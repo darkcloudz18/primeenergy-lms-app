@@ -1,4 +1,4 @@
-// src/app/admin/courses/edit/[courseId]/modules/[moduleId]/lessons/[lessonId]/page.tsx
+// src/app/dashboard/tutor/courses/edit/[courseId]/modules/[moduleId]/lessons/[lessonId]/page.tsx
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "default-no-store";
@@ -6,7 +6,7 @@ export const fetchCache = "default-no-store";
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-// Keep a local shape that matches exactly what we SELECT
+// Matches exactly what we SELECT
 type LessonRow = {
   id: string;
   module_id: string;
@@ -21,7 +21,7 @@ interface PageProps {
   params: { courseId: string; moduleId: string; lessonId: string };
 }
 
-export default async function AdminLessonEditPage({ params }: PageProps) {
+export default async function TutorLessonEditPage({ params }: PageProps) {
   const { courseId, moduleId, lessonId } = params;
 
   // Guard: module must belong to course
@@ -40,7 +40,7 @@ export default async function AdminLessonEditPage({ params }: PageProps) {
     );
   }
 
-  // Load lesson for this module
+  // Load lesson
   const { data: lesData, error: lesErr } = await supabaseAdmin
     .from("lessons")
     .select("id, module_id, title, ordering, content, type, image_url")
@@ -73,7 +73,7 @@ export default async function AdminLessonEditPage({ params }: PageProps) {
     image_url: lesData.image_url ?? "",
   };
 
-  const back = `/admin/courses/edit/${courseId}`;
+  const back = `/dashboard/tutor/courses/edit/${courseId}`;
 
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-6">
@@ -130,6 +130,7 @@ export default async function AdminLessonEditPage({ params }: PageProps) {
           />
         </div>
 
+        {/* NEW: optional fields included so API can update them */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="block">
             <span className="text-sm font-medium">Type</span>
@@ -168,17 +169,6 @@ export default async function AdminLessonEditPage({ params }: PageProps) {
           </Link>
         </div>
       </form>
-
-      {/* Optional delete action (only if you have /api/lessons/delete) */}
-      {/* 
-      <form action="/api/lessons/delete" method="POST" className="pt-2">
-        <input type="hidden" name="id" value={lesson.id} />
-        <input type="hidden" name="redirect_to" value={`${back}#module-${lesson.module_id}`} />
-        <button className="text-red-600 hover:underline" type="submit">
-          Delete Lesson
-        </button>
-      </form>
-      */}
     </main>
   );
 }

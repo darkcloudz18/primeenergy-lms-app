@@ -1,8 +1,0 @@
-// src/app/api/whoami/route.ts
-import { NextResponse } from "next/server";
-import { getSupabaseRSC } from "@/lib/supabase-rsc";
-export async function GET() {
-  const supabase = getSupabaseRSC();
-  const { data } = await supabase.auth.getUser();
-  return NextResponse.json({ user: data.user });
-}

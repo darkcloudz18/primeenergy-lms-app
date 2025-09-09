@@ -9,5 +9,15 @@ if (!supabaseUrl || !serviceRoleKey) {
   );
 }
 
-// This module is only imported in server contexts (API routes)
-export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+  // IMPORTANT: avoid Next.js fetch cache for server-side queries
+  global: {
+    fetch: (url, options) =>
+      fetch(url, {
+        ...options,
+        cache: "no-store",
+        // also disable any ISR for these calls
+        next: { revalidate: 0 },
+      }),
+  },
+});

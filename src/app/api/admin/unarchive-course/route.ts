@@ -48,6 +48,7 @@ export async function POST(req: Request) {
 
     // 4) Revalidate admin list
     revalidatePath("/admin/courses");
+    revalidatePath("dashboard/tutor/courses");
 
     return NextResponse.json({ ok: true });
   } catch (e) {

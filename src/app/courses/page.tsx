@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { supabase } from "@/lib/supabaseClient";
+import { basicSanitize } from "@/lib/sanitize";
 
 interface Course {
   id: string;
@@ -237,9 +238,12 @@ export default function AllCoursesPage() {
                   </div>
 
                   {course.description && (
-                    <p className="mt-2 text-gray-700 line-clamp-2">
-                      {course.description}
-                    </p>
+                    <div
+                      className="mt-2 text-gray-700 prose max-w-none line-clamp-2 overflow-hidden"
+                      dangerouslySetInnerHTML={{
+                        __html: basicSanitize(course.description),
+                      }}
+                    />
                   )}
                 </div>
               </Link>

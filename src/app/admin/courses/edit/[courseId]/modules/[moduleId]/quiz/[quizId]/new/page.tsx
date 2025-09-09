@@ -1,21 +1,20 @@
-// src/app/admin/courses/edit/[courseId]/final-quiz/new/page.tsx
 export const dynamic = "force-dynamic";
 
 import QuizEditor, {
-  type EditorQuiz,
-  type EditorQuestion,
+  EditorQuiz,
+  EditorQuestion,
 } from "@/components/QuizEditor";
 
-interface PageProps {
-  params: { courseId: string };
-}
-
-export default function NewFinalQuizPage({ params }: PageProps) {
-  const { courseId } = params;
+export default function ModuleQuizNewPage({
+  params,
+}: {
+  params: { courseId: string; moduleId: string };
+}) {
+  const { courseId, moduleId } = params;
 
   const initialQuiz: EditorQuiz = {
-    course_id: courseId, // REQUIRED
-    module_id: null,
+    course_id: courseId, // ✅ required
+    module_id: moduleId, // ✅ required for module quiz
     title: "",
     passing_score: 0,
   };
@@ -23,8 +22,8 @@ export default function NewFinalQuizPage({ params }: PageProps) {
   const initialQuestions: EditorQuestion[] = [];
 
   return (
-    <main className="max-w-3xl mx-auto p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">Create Final Quiz</h1>
+    <main className="max-w-3xl mx-auto p-6">
+      <h1 className="text-2xl font-semibold mb-4">Add Module Quiz</h1>
       <QuizEditor
         initialQuiz={initialQuiz}
         initialQuestions={initialQuestions}
