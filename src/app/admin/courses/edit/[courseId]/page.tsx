@@ -193,7 +193,10 @@ export default async function EditCoursePage({ params }: PageProps) {
         <div className="border-b pb-4">
           <h2 className="text-2xl font-semibold">Final Quiz</h2>
           {finalQuiz ? (
-            <Link href={`/admin/courses/edit/${courseId}/final-quiz/anything`}>
+            <Link
+              href={`/admin/courses/edit/${courseId}/final-quiz/${finalQuiz.id}`}
+              className="text-blue-600 hover:underline text-sm"
+            >
               Edit Final Quiz
             </Link>
           ) : (

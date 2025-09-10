@@ -1,11 +1,12 @@
+// src/app/admin/courses/edit/[courseId]/modules/[moduleId]/quiz/new/page.tsx
 export const dynamic = "force-dynamic";
 
 import QuizEditor, {
-  EditorQuiz,
-  EditorQuestion,
+  type EditorQuiz,
+  type EditorQuestion,
 } from "@/components/QuizEditor";
 
-export default function ModuleQuizNewPage({
+export default function AdminModuleQuizNewPage({
   params,
 }: {
   params: { courseId: string; moduleId: string };
@@ -13,8 +14,8 @@ export default function ModuleQuizNewPage({
   const { courseId, moduleId } = params;
 
   const initialQuiz: EditorQuiz = {
-    course_id: courseId, // ✅ required
-    module_id: moduleId, // ✅ required for module quiz
+    course_id: courseId,
+    module_id: moduleId,
     title: "",
     passing_score: 0,
   };
@@ -22,13 +23,13 @@ export default function ModuleQuizNewPage({
   const initialQuestions: EditorQuestion[] = [];
 
   return (
-    <main className="max-w-3xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold mb-4">Add Module Quiz</h1>
+    <main className="max-w-3xl mx-auto p-6 space-y-6">
+      <h1 className="text-2xl font-semibold">New Module Quiz</h1>
       <QuizEditor
         initialQuiz={initialQuiz}
         initialQuestions={initialQuestions}
         courseId={courseId}
-        moduleId={null}
+        moduleId={moduleId} // <-- IMPORTANT
         afterSaveBase="/admin"
       />
     </main>

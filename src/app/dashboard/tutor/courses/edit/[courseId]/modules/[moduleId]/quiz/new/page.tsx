@@ -1,76 +1,35 @@
+// src/app/dashboard/tutor/courses/edit/[courseId]/modules/[moduleId]/quiz/new/page.tsx
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
-import { getSupabaseRSC } from "@/lib/supabase-rsc";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import QuizEditor, {
-  EditorQuiz,
-  EditorQuestion,
+  type EditorQuiz,
+  type EditorQuestion,
 } from "@/components/QuizEditor";
 
-function isAdminRole(role?: string | null) {
-  const r = (role ?? "").toLowerCase().trim();
-  return r === "admin" || r === "super admin";
-}
-
-interface PageProps {
+export default function TutorModuleQuizNewPage({
+  params,
+}: {
   params: { courseId: string; moduleId: string };
-}
-
-export default async function TutorModuleQuizNewPage({ params }: PageProps) {
+}) {
   const { courseId, moduleId } = params;
-  const sb = getSupabaseRSC();
-
-  const {
-    data: { user },
-  } = await sb.auth.getUser();
-  if (!user) return <div className="p-6 text-red-600">Not authenticated.</div>;
-
-  // verify ownership
-  const { data: course } = await supabaseAdmin
-    .from("courses")
-    .select("id,instructor_id")
-    .eq("id", courseId)
-    .maybeSingle();
-  if (!course) return <div className="p-6 text-red-600">Course not found.</div>;
-
-  let isAdmin = false;
-  {
-    const { data: prof } = await sb
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    isAdmin = isAdminRole(prof?.role);
-  }
-  if (!isAdmin && course.instructor_id !== user.id) {
-    return <div className="p-6 text-red-600">Forbidden.</div>;
-  }
 
   const initialQuiz: EditorQuiz = {
-    course_id: courseId,
-    module_id: moduleId,
+    course_id: courseId, // REQUIRED
+    module_id: moduleId, // REQUIRED (non-null for module quiz)
     title: "",
     passing_score: 0,
   };
-  const initialQuestions: EditorQuestion[] = [];
 
-  const back = `/dashboard/tutor/courses/edit/${courseId}`;
+  const initialQuestions: EditorQuestion[] = [];
 
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">New Module Quiz</h1>
-        <Link href={back} className="text-blue-600 hover:underline">
-          ← Back
-        </Link>
-      </div>
-
+      <h1 className="text-2xl font-semibold">New Module Quiz</h1>
       <QuizEditor
         initialQuiz={initialQuiz}
         initialQuestions={initialQuestions}
         courseId={courseId}
-        moduleId={null}
+        moduleId={moduleId} // <-- IMPORTANT: pass the string, not null
         afterSaveBase="/dashboard/tutor"
       />
     </main>
