@@ -1,3 +1,4 @@
+// src/app/admin/certificates/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -18,6 +19,10 @@ type Template = {
   is_active: boolean;
 };
 
+const BASE_W = 1200;
+const BASE_H = 800;
+const PREVIEW_SCALE = 0.5; // 1200x800 → 600x400
+
 export default function AdminCertificatesPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +35,8 @@ export default function AdminCertificatesPage() {
 
   const [fontSize, setFontSize] = useState(48);
   const [fontColor, setFontColor] = useState("#0b3d2e");
+
+  // default positions (center-anchored on a 1200x800 canvas)
   const [pos, setPos] = useState({
     name_x: 600,
     name_y: 420,
@@ -39,7 +46,7 @@ export default function AdminCertificatesPage() {
     date_y: 620,
   });
 
-  const load = async () => {
+  async function load() {
     setLoading(true);
     const res = await fetch("/api/admin/certificates/templates", {
       credentials: "include",
@@ -47,13 +54,13 @@ export default function AdminCertificatesPage() {
     const j = await res.json();
     setTemplates(j.templates ?? []);
     setLoading(false);
-  };
+  }
 
   useEffect(() => {
     load();
   }, []);
 
-  // Upload to our server route which stores in Supabase Storage (and can auto-create bucket)
+  // Upload to /api/admin/certificates/upload -> returns { url }
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -71,8 +78,7 @@ export default function AdminCertificatesPage() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Upload failed");
-
-      setImageUrl(j.url); // use returned public URL
+      setImageUrl(j.url);
     } catch (err) {
       setUploadError((err as Error).message);
     } finally {
@@ -80,11 +86,12 @@ export default function AdminCertificatesPage() {
     }
   }
 
-  const onCreate = async () => {
+  async function onCreate() {
     if (!name || !imageUrl) {
-      alert("Please fill name and upload a background image (or paste a URL).");
+      alert("Please set a template name and upload/paste a background image.");
       return;
     }
+
     const res = await fetch("/api/admin/certificates/templates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -105,9 +112,9 @@ export default function AdminCertificatesPage() {
     setName("");
     setImageUrl("");
     await load();
-  };
+  }
 
-  const setActive = async (id: string) => {
+  async function setActive(id: string) {
     const res = await fetch(`/api/admin/certificates/templates/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -120,9 +127,9 @@ export default function AdminCertificatesPage() {
       return;
     }
     await load();
-  };
+  }
 
-  const remove = async (id: string) => {
+  async function remove(id: string) {
     if (!confirm("Delete this template?")) return;
     const res = await fetch(`/api/admin/certificates/templates/${id}`, {
       method: "DELETE",
@@ -134,53 +141,63 @@ export default function AdminCertificatesPage() {
       return;
     }
     await load();
-  };
+  }
+
+  // helper: convert base coords to preview %
+  const toPercent = (x: number, base: number) => `${(x / base) * 100}%`;
 
   return (
     <main className="max-w-6xl mx-auto p-6 space-y-8">
       <h1 className="text-2xl font-semibold">Certificate Templates</h1>
 
-      {/* Create new template */}
+      {/* Create / Upload */}
       <section className="bg-white rounded shadow p-4 space-y-4">
         <h2 className="text-lg font-medium">Create / Upload Template</h2>
-        <div className="grid sm:grid-cols-2 gap-4">
+
+        <div className="grid sm:grid-cols-2 gap-6">
           {/* Left: form */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">Name</label>
-            <input
-              className="border rounded px-3 py-2 w-full"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Template 1"
-            />
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium">Template Name</label>
+              <input
+                className="border rounded px-3 py-2 w-full"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Template 1"
+              />
+            </div>
 
-            <label className="block text-sm font-medium mt-2">
-              Upload Background Image
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleUpload}
-              className="block w-full text-sm"
-            />
-            {uploading && (
-              <p className="text-xs text-gray-500 mt-1">Uploading…</p>
-            )}
-            {uploadError && (
-              <p className="text-xs text-red-600 mt-1">{uploadError}</p>
-            )}
+            <div>
+              <label className="block text-sm font-medium">
+                Upload Background Image
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleUpload}
+                className="block w-full text-sm"
+              />
+              {uploading && (
+                <p className="text-xs text-gray-500 mt-1">Uploading…</p>
+              )}
+              {uploadError && (
+                <p className="text-xs text-red-600 mt-1">{uploadError}</p>
+              )}
+            </div>
 
-            <label className="block text-sm font-medium mt-2">
-              (Optional) Background Image URL
-            </label>
-            <input
-              className="border rounded px-3 py-2 w-full"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="Or paste an image URL"
-            />
+            <div>
+              <label className="block text-sm font-medium">
+                Or paste Background Image URL
+              </label>
+              <input
+                className="border rounded px-3 py-2 w-full"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://…"
+              />
+            </div>
 
-            <div className="grid grid-cols-2 gap-2 mt-2">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium">Font Size</label>
                 <input
@@ -201,8 +218,7 @@ export default function AdminCertificatesPage() {
               </div>
             </div>
 
-            {/* positions */}
-            <div className="grid grid-cols-2 gap-2 mt-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {(
                 [
                   ["name_x", "Name X"],
@@ -229,17 +245,26 @@ export default function AdminCertificatesPage() {
 
             <button
               onClick={onCreate}
-              className="mt-3 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              disabled={!name || !imageUrl}
+              className="mt-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
             >
               Save Template
             </button>
+
+            <p className="text-xs text-gray-500">
+              The coordinates are **center-anchored** on a 1200×800 canvas and
+              match the student certificate renderer.
+            </p>
           </div>
 
-          {/* Right: live preview */}
+          {/* Right: live preview (center-anchored) */}
           <div>
             <div
               className="relative border rounded overflow-hidden bg-gray-50"
-              style={{ width: 600, height: 400 }}
+              style={{
+                width: BASE_W * PREVIEW_SCALE,
+                height: BASE_H * PREVIEW_SCALE,
+              }}
             >
               {imageUrl && (
                 <Image
@@ -250,43 +275,65 @@ export default function AdminCertificatesPage() {
                   unoptimized
                 />
               )}
+
+              {/* Name */}
               <div
                 style={{
                   position: "absolute",
-                  left: pos.name_x * 0.5,
-                  top: pos.name_y * 0.5,
-                  fontSize: fontSize * 0.5,
-                  color: fontColor,
+                  left: toPercent(pos.name_x, BASE_W),
+                  top: toPercent(pos.name_y, BASE_H),
+                  transform: "translate(-50%, -50%)",
+                  fontSize: fontSize * PREVIEW_SCALE,
+                  color: fontColor || "#111111",
                   fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  textAlign: "center",
+                  textShadow: "0 1px 2px rgba(0,0,0,0.25)",
                 }}
               >
-                John
+                John Doe
               </div>
+
+              {/* Course title */}
               <div
                 style={{
                   position: "absolute",
-                  left: pos.course_x * 0.5,
-                  top: pos.course_y * 0.5,
-                  fontSize: Math.max(fontSize - 6, 24) * 0.5,
-                  color: fontColor,
+                  left: toPercent(pos.course_x, BASE_W),
+                  top: toPercent(pos.course_y, BASE_H),
+                  transform: "translate(-50%, -50%)",
+                  fontSize: Math.max(fontSize - 6, 24) * PREVIEW_SCALE,
+                  color: fontColor || "#111111",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  textAlign: "center",
+                  textShadow: "0 1px 2px rgba(0,0,0,0.25)",
                 }}
               >
                 Intro to Solar
               </div>
+
+              {/* Date */}
               <div
                 style={{
                   position: "absolute",
-                  left: pos.date_x * 0.5,
-                  top: pos.date_y * 0.5,
-                  fontSize: 20 * 0.5,
-                  color: fontColor,
+                  left: toPercent(pos.date_x, BASE_W),
+                  top: toPercent(pos.date_y, BASE_H),
+                  transform: "translate(-50%, -50%)",
+                  fontSize: 20 * PREVIEW_SCALE,
+                  color: fontColor || "#111111",
+                  fontWeight: 500,
+                  whiteSpace: "nowrap",
+                  textAlign: "center",
+                  textShadow: "0 1px 2px rgba(0,0,0,0.25)",
                 }}
               >
                 01/01/2025
               </div>
             </div>
+
             <p className="text-xs text-gray-500 mt-1">
-              Preview is scaled (1200×800 → 600×400).
+              Preview is scaled to {BASE_W * PREVIEW_SCALE}×
+              {BASE_H * PREVIEW_SCALE} (from {BASE_W}×{BASE_H}).
             </p>
           </div>
         </div>
@@ -313,6 +360,7 @@ export default function AdminCertificatesPage() {
                     unoptimized
                   />
                 </div>
+
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-medium">{t.name}</div>
@@ -320,6 +368,7 @@ export default function AdminCertificatesPage() {
                       {t.is_active ? "Active" : "Inactive"}
                     </div>
                   </div>
+
                   <div className="flex gap-2">
                     {!t.is_active && (
                       <button
