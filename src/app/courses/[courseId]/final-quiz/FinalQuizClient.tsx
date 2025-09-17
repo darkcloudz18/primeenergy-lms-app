@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import html2canvas from "html2canvas";
+import type { Options as H2COptions } from "html2canvas";
 import jsPDF from "jspdf";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -40,6 +40,8 @@ type ActiveTemplate = {
   font_size: number;
   font_color: string;
   is_active: boolean;
+  design_width?: number;   // ← optional
+  design_height?: number;  // ← optional
 };
 
 type CertificatePreviewProps = {
@@ -69,6 +71,21 @@ async function fetchDisplayNameFromApi(): Promise<string> {
 
 /* -------------------- certificate preview widget -------------------- */
 
+function useImageNaturalSize(src?: string) {
+  const [wh, setWh] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    if (!src) return;
+    const imgEl = new window.Image();
+    imgEl.crossOrigin = "anonymous";
+    imgEl.onload = () => setWh({
+      w: imgEl.naturalWidth || 1600,
+      h: imgEl.naturalHeight || 1066,
+    });
+    imgEl.src = src;
+  }, [src]);
+  return wh;
+}
+
 function CertificatePreview({
   template,
   learnerName,
@@ -84,30 +101,44 @@ function CertificatePreview({
     );
   }
 
-  // We only need baseH now because left is fixed at 50%
-  const baseH = 800;
+  // natural image size for outer frame/aspect
+  const wh = useImageNaturalSize(template.image_url);
+  const imgW = wh?.w ?? 1600;
+  const imgH = wh?.h ?? 1066;
+  const imgRatio = imgW / imgH;
+
+  // ✅ Use the same canvas the template was authored in.
+  // If you add design_width/height in DB, we’ll use them; otherwise fall back to natural size.
+  const designW = template.design_width ?? imgW;
+  const designH = template.design_height ?? imgH;
+
+  const leftPct = (x?: number) =>
+    (x !== undefined ? `${(x / designW) * 100}%` : "50%");
+  const topPct = (y: number) => `${(y / designH) * 100}%`;
 
   return (
     <div
       ref={containerRef}
-      className="relative w-full max-w-4xl mx-auto aspect-[3/2] rounded-xl overflow-hidden border bg-white"
+      style={{ aspectRatio: String(imgRatio) }}
+      className="relative w-full max-w-4xl mx-auto rounded-xl overflow-hidden border bg-white"
     >
-      <Image
+      {/* plain <img> so html2canvas can capture it 1:1 */}
+      <img
         src={template.image_url}
+        crossOrigin="anonymous"
         alt={template.name}
-        fill
-        className="object-cover"
-        priority
+        className="absolute inset-0 w-full h-full"
+        style={{ objectFit: "fill" }}
       />
 
-      {/* Name – centered */}
+      {/* Name (centered) */}
       <div
         style={{
           position: "absolute",
-          left: "50%",
-          top: `${(template.name_y / baseH) * 100}%`,
-          transform: "translate(-50%, -50%)",
-          width: "80%", // allow wrapping while keeping it centered
+          left: leftPct(template.name_x),
+          top: topPct(template.name_y),
+          transform: "translate(-50%, -50%)", // vertical + horizontal center
+          width: "80%",
           color: template.font_color,
           fontSize: `${template.font_size / 2}px`,
           fontWeight: 700,
@@ -119,12 +150,12 @@ function CertificatePreview({
         {learnerName}
       </div>
 
-      {/* Course – centered */}
+      {/* Course (centered) */}
       <div
         style={{
           position: "absolute",
-          left: "50%",
-          top: `${(template.course_y / baseH) * 100}%`,
+          left: leftPct(template.course_x),
+          top: topPct(template.course_y),
           transform: "translate(-50%, -50%)",
           width: "80%",
           color: template.font_color,
@@ -138,12 +169,12 @@ function CertificatePreview({
         {courseTitle}
       </div>
 
-      {/* Date – centered */}
+      {/* Date (centered) */}
       <div
         style={{
           position: "absolute",
-          left: "50%",
-          top: `${(template.date_y / baseH) * 100}%`,
+          left: leftPct(template.date_x),
+          top: topPct(template.date_y),
           transform: "translate(-50%, -50%)",
           color: template.font_color,
           fontSize: `${20 / 2}px`,
@@ -441,42 +472,48 @@ export default function FinalQuizClient({
 
   /* ------------------------------ downloads ------------------------------ */
 
-  function downloadPNG() {
-    const el = certRef.current;
-    if (!el) return;
-    html2canvas(el, {
-      backgroundColor: "#ffffff",
-      scale: 2,
-      useCORS: true,
-    }).then((canvas) => {
-      const link = document.createElement("a");
-      link.download = "certificate.png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-    });
-  }
+function downloadPNG() {
+  const el = certRef.current;
+  if (!el) return;
+  const opts: Partial<H2COptions> = {
+    backgroundColor: "#ffffff",
+    scale: 2,
+    useCORS: true,
+    allowTaint: false,
+    logging: false,
+  };
+  html2canvas(el, opts).then((canvas) => {
+    const link = document.createElement("a");
+    link.download = "certificate.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  });
+}
 
-  function downloadPDF() {
-    const el = certRef.current;
-    if (!el) return;
-    html2canvas(el, {
-      backgroundColor: "#ffffff",
-      scale: 2,
-      useCORS: true,
-    }).then((canvas) => {
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("landscape", "pt", "a4");
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
-      const w = canvas.width * ratio;
-      const h = canvas.height * ratio;
-      const x = (pageW - w) / 2;
-      const y = (pageH - h) / 2;
-      pdf.addImage(imgData, "PNG", x, y, w, h);
-      pdf.save("certificate.pdf");
-    });
-  }
+function downloadPDF() {
+  const el = certRef.current;
+  if (!el) return;
+  const opts: Partial<H2COptions> = {
+    backgroundColor: "#ffffff",
+    scale: 2,
+    useCORS: true,
+    allowTaint: false,
+    logging: false,
+  };
+  html2canvas(el, opts).then((canvas) => {
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF("landscape", "pt", "a4");
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
+    const w = canvas.width * ratio;
+    const h = canvas.height * ratio;
+    const x = (pageW - w) / 2;
+    const y = (pageH - h) / 2;
+    pdf.addImage(imgData, "PNG", x, y, w, h);
+    pdf.save("certificate.pdf");
+  });
+}
 
   /* --------------------------------- UI --------------------------------- */
 
