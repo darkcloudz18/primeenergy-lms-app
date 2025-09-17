@@ -18,10 +18,17 @@ interface SidebarProps {
   currentModuleId: string;
   currentLessonId: string;
   modules: UIModule[];
-  finalQuizPath?: string;
+  finalQuizPath?: string; // course-level final quiz route if exists
   completedLessons: string[];
-  passedQuizzes: string[];
+  passedQuizzes: string[]; // module quiz ids (and optionally final quiz id if you include it)
   courseTitle?: string;
+
+  // NEW: show certificate link when true (computed by parent if you prefer)
+  finalQuizPassed?: boolean;
+  // NEW: custom path to congratulations (defaults to /courses/[id]/congratulations)
+  congratulationsPath?: string;
+
+  // Optional: info about the latest final attempt (used as fallback to detect pass on final-quiz page)
   finalAttempt?: { score: number; passed: boolean; finishedAt?: string };
 }
 
@@ -41,11 +48,10 @@ export default function Sidebar({
   passedQuizzes,
   courseTitle,
   finalAttempt,
+  finalQuizPassed,
+  congratulationsPath,
 }: SidebarProps) {
-  const completedSet = useMemo(
-    () => new Set(completedLessons),
-    [completedLessons]
-  );
+  const completedSet = useMemo(() => new Set(completedLessons), [completedLessons]);
   const passedSet = useMemo(() => new Set(passedQuizzes), [passedQuizzes]);
 
   const isModuleComplete = useCallback(
@@ -65,6 +71,20 @@ export default function Sidebar({
     () => modules.every((m) => isModuleComplete(m)),
     [modules, isModuleComplete]
   );
+
+  // ✅ Should we show the Congratulations link?
+  // - Must finish all modules
+  // - If there is a final quiz, must have passed it (prefer prop, fallback to latest attempt)
+  const finalPassed =
+    typeof finalQuizPassed === "boolean"
+      ? finalQuizPassed
+      : !!finalAttempt?.passed;
+
+  const canShowCongrats =
+    allModulesComplete && (!finalQuizPath || finalPassed);
+
+  const congratsHref =
+    congratulationsPath ?? `/courses/${courseId}/congratulations`;
 
   return (
     <aside className="w-64 flex-shrink-0 border-r bg-white h-screen overflow-auto p-4 sticky top-0">
@@ -165,6 +185,7 @@ export default function Sidebar({
         );
       })}
 
+      {/* Final Quiz entry */}
       {finalQuizPath && (
         <div className="mt-4 pt-4 border-t">
           <Link
@@ -193,6 +214,18 @@ export default function Sidebar({
                 : ""}
             </div>
           )}
+        </div>
+      )}
+
+      {/* 🎉 Congratulations / Certificate link */}
+      {canShowCongrats && (
+        <div className="mt-4">
+          <Link
+            href={congratsHref}
+            className="block rounded-md px-3 py-2 text-sm bg-emerald-600 text-white text-center hover:bg-emerald-700"
+          >
+            🎉 View Certificate
+          </Link>
         </div>
       )}
     </aside>

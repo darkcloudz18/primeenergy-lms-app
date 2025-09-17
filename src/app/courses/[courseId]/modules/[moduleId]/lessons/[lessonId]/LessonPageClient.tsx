@@ -1,11 +1,24 @@
-// src/app/courses/[courseId]/modules/[moduleId]/lessons/[lessonId]/LessonPageClient.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import Sidebar from "./components/Sidebar";
 import LessonContent from "./components/LessonContent";
 import type { ModuleWithLessons } from "@/lib/types";
+
+async function markCourseCompleted(courseId: string) {
+  const supabase = createClientComponentClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { error } = await supabase
+    .from("course_progress")
+    .upsert(
+      { user_id: user.id, course_id: courseId, status: "completed", completed_at: new Date().toISOString() },
+      { onConflict: "user_id,course_id" }
+    );
+  if (error) console.error("course_progress upsert failed:", error);
+}
 
 interface Props {
   courseId: string;
@@ -15,6 +28,7 @@ interface Props {
   lessonContent: string;
   modules: ModuleWithLessons[];
   finalQuizPath?: string;
+  finalQuizPassed?: boolean;     // 👈 NEW
   initialCompleted: string[];
   initialPassed: string[];
 }
@@ -27,48 +41,67 @@ export default function LessonPageClient({
   lessonContent,
   modules,
   finalQuizPath,
+  finalQuizPassed = false,        // 👈 default
   initialCompleted,
   initialPassed,
 }: Props) {
   const router = useRouter();
 
-  // completed needs to be mutable (we add to it)
   const [completed, setCompleted] = useState<Set<string>>(
     () => new Set(initialCompleted)
   );
-
-  // passed doesn’t change here — compute once from props (no unused setter)
   const passed = useMemo(() => new Set(initialPassed), [initialPassed]);
 
-  // Flatten all lessons in order for next/prev navigation
+  // ordered lessons for prev/next
   const allLessons = useMemo(
-    () =>
-      modules.flatMap((m) => m.lessons.map((l) => ({ ...l, module_id: m.id }))),
+    () => modules.flatMap((m) => m.lessons.map((l) => ({ ...l, module_id: m.id }))),
     [modules]
   );
   const currentIndex = allLessons.findIndex((l) => l.id === lessonId);
-  const prevLesson =
-    currentIndex > 0 ? allLessons[currentIndex - 1] : undefined;
+  const prevLesson = currentIndex > 0 ? allLessons[currentIndex - 1] : undefined;
   const nextLesson =
     currentIndex >= 0 && currentIndex + 1 < allLessons.length
       ? allLessons[currentIndex + 1]
       : undefined;
 
-  // Called by LessonContent when “Mark Complete” succeeds
-  const handleComplete = (id: string) => {
-    setCompleted((s) => {
-      const copy = new Set(s);
-      copy.add(id);
-      return copy;
-    });
+  // ✅ compute when to show Congrats link
+  const allLessonsDone = completed.size >= allLessons.length;
+  const showCongratsLink = allLessonsDone && (!finalQuizPath || finalQuizPassed);
+  const congratulationsPath = showCongratsLink
+    ? `/courses/${courseId}/congratulations`
+    : undefined;
 
-    // Auto-advance to next lesson if there is one
+  // Called when “Mark Complete” succeeds for the current lesson
+  const handleComplete = async (id: string) => {
+    setCompleted((s) => new Set(s).add(id));
+
     if (nextLesson) {
-      router.push(
-        `/courses/${courseId}/modules/${nextLesson.module_id}/lessons/${nextLesson.id}`
-      );
+      router.push(`/courses/${courseId}/modules/${nextLesson.module_id}/lessons/${nextLesson.id}`);
+      return;
     }
+
+    // last lesson
+    const hasFinalQuiz = Boolean(finalQuizPath && finalQuizPath.trim());
+    if (hasFinalQuiz) {
+      router.push(finalQuizPath!);
+      return;
+    }
+
+    await markCourseCompleted(courseId);
+    router.replace(`/courses/${courseId}/congratulations`);
   };
+
+  // Safety: if user reloads on the end and there is no final quiz, complete course
+  useEffect(() => {
+    const atEnd = !nextLesson && allLessonsDone && (!finalQuizPath || !finalQuizPath.trim());
+    if (atEnd) {
+      (async () => {
+        await markCourseCompleted(courseId);
+        router.replace(`/courses/${courseId}/congratulations`);
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextLesson, allLessonsDone, finalQuizPath, courseId]);
 
   return (
     <div className="flex h-screen">
@@ -80,6 +113,7 @@ export default function LessonPageClient({
         finalQuizPath={finalQuizPath}
         completedLessons={[...completed]}
         passedQuizzes={[...passed]}
+        congratulationsPath={congratulationsPath}  
       />
 
       <LessonContent
