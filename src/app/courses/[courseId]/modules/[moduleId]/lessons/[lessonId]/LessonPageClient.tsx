@@ -101,6 +101,7 @@ export default function LessonPageClient({
       })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    //es
   }, [nextLesson, allLessonsDone, finalQuizPath, courseId]);
 
   return (
