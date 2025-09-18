@@ -1,10 +1,12 @@
+// src/app/courses/[courseId]/congratulations/CongratsClient.tsx
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+
+/* ----------------------------- types ----------------------------- */
 
 type ActiveTemplate = {
   id: string;
@@ -27,43 +29,120 @@ async function fetchDisplayNameFromApi(): Promise<string> {
   return j.displayName as string;
 }
 
+/* The template was measured on a base 1200x800 image */
+const BASE_W = 1200;
+const BASE_H = 800;
+
+/* ---------------------- certificate preview ---------------------- */
+
 function CertificatePreview({
-  template, learnerName, courseTitle, dateText, containerRef,
+  template,
+  learnerName,
+  courseTitle,
+  dateText,
+  containerRef,
 }: {
   template: ActiveTemplate | null;
   learnerName: string;
   courseTitle: string;
   dateText: string;
-  containerRef: React.RefObject<HTMLDivElement>;
+  // Allow nullable ref here ✅
+  containerRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   if (!template) {
-    return <p className="text-center text-sm text-gray-500 my-3">(No active certificate template found.)</p>;
+    return (
+      <p className="text-center text-sm text-gray-500 my-3">
+        (No active certificate template found.)
+      </p>
+    );
   }
-  const baseH = 800;
+
+  // Use a local fallback if no ref is provided
+  const localRef = useRef<HTMLDivElement | null>(null);
+  const hostRef = containerRef ?? localRef; // ✅ type-safe
+
+  // helpers now use hostRef.current?. safely
+  const px = (n: number) => {
+    const h = hostRef.current?.getBoundingClientRect().height ?? 0;
+    const scale = h / BASE_H;
+    return n * scale;
+  };
+  const topPct = (y: number) => `${(y / BASE_H) * 100}%`;
+
   return (
-    <div ref={containerRef} className="relative w-full max-w-4xl mx-auto aspect-[3/2] rounded-xl overflow-hidden border bg-white">
-      <Image src={template.image_url} alt={template.name} fill className="object-cover" priority />
-      {/* Name */}
-      <div style={{
-        position: "absolute", left: "50%", top: `${(template.name_y / baseH) * 100}%`,
-        transform: "translate(-50%, -50%)", width: "80%", color: template.font_color,
-        fontSize: `${template.font_size / 2}px`, fontWeight: 700, textAlign: "center", lineHeight: 1.2,
-      }}>{learnerName}</div>
-      {/* Course */}
-      <div style={{
-        position: "absolute", left: "50%", top: `${(template.course_y / baseH) * 100}%`,
-        transform: "translate(-50%, -50%)", width: "80%", color: template.font_color,
-        fontSize: `${Math.max(template.font_size - 6, 24) / 2}px`, fontWeight: 500, textAlign: "center",
-      }}>{courseTitle}</div>
-      {/* Date */}
-      <div style={{
-        position: "absolute", left: "50%", top: `${(template.date_y / baseH) * 100}%`,
-        transform: "translate(-50%, -50%)", color: template.font_color, fontSize: `${20 / 2}px`,
-        textAlign: "center", whiteSpace: "nowrap",
-      }}>{dateText}</div>
+    <div
+      ref={hostRef}
+      className="relative w-full max-w-4xl mx-auto aspect-[3/2] rounded-xl overflow-hidden border bg-white"
+    >
+      {/* Use plain <img> so html2canvas captures 1:1 */}
+      <img
+        src={template.image_url}
+        alt={template.name}
+        crossOrigin="anonymous"
+        decoding="sync"
+        loading="eager"
+        className="absolute inset-0 h-full w-full object-fill select-none pointer-events-none"
+      />
+
+      {/* Name — centered horizontally */}
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: topPct(template.name_y),
+          transform: "translate(-50%, -50%)",
+          width: "80%",
+          color: template.font_color,
+          fontSize: `${px(template.font_size)}px`,
+          fontWeight: 800,
+          textAlign: "center",
+          lineHeight: 1.15,
+          whiteSpace: "normal",
+        }}
+      >
+        {learnerName}
+      </div>
+
+      {/* Course — centered horizontally */}
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: topPct(template.course_y),
+          transform: "translate(-50%, -50%)",
+          width: "86%",
+          color: template.font_color,
+          fontSize: `${px(Math.max(template.font_size - 16, 28))}px`,
+          fontWeight: 700,
+          textAlign: "center",
+          lineHeight: 1.2,
+          whiteSpace: "normal",
+        }}
+      >
+        {courseTitle}
+      </div>
+
+      {/* Date — centered horizontally */}
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: topPct(template.date_y),
+          transform: "translate(-50%, -50%)",
+          color: template.font_color,
+          fontSize: `${px(24)}px`,
+          fontWeight: 500,
+          textAlign: "center",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {dateText}
+      </div>
     </div>
   );
 }
+
+/* ------------------------------ page UI ------------------------------ */
 
 export default function CongratsClient({
   template,
@@ -81,38 +160,61 @@ export default function CongratsClient({
   certificateUrl?: string | null;
 }) {
   const [name, setName] = useState(initialName || "Learner");
-  const certRef = useRef<HTMLDivElement>(null!);
+  const certRef = useRef<HTMLDivElement>(null);
 
-  // ✅ match FinalQuiz: override with API name on mount
+  // Ensure we use the same display name logic as FinalQuiz
   useEffect(() => {
     fetchDisplayNameFromApi()
       .then((n) => n && setName(n))
       .catch(() => {});
   }, []);
 
-  const downloadPNG = () => {
-    const el = certRef.current; if (!el) return;
-    html2canvas(el, { backgroundColor: "#ffffff", scale: 2, useCORS: true }).then((canvas) => {
-      const a = document.createElement("a");
-      a.download = "certificate.png";
-      a.href = canvas.toDataURL("image/png");
-      a.click();
+  const snapshot = async (): Promise<HTMLCanvasElement | null> => {
+    const el = certRef.current;
+    if (!el) return null;
+
+    // Wait for fonts to be ready so text size matches
+    // (Safari/WebKit sometimes needs this)
+    // @ts-ignore
+    if (document.fonts?.ready) {
+      try {
+        // @ts-ignore
+        await document.fonts.ready;
+      } catch {}
+    }
+
+    return html2canvas(el, {
+      backgroundColor: "#ffffff",
+      useCORS: true,
+      scale: Math.max(window.devicePixelRatio || 1, 2),
+      logging: false,
     });
   };
 
-  const downloadPDF = () => {
-    const el = certRef.current; if (!el) return;
-    html2canvas(el, { backgroundColor: "#ffffff", scale: 2, useCORS: true }).then((canvas) => {
-      const img = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("landscape", "pt", "a4");
-      const pw = pdf.internal.pageSize.getWidth();
-      const ph = pdf.internal.pageSize.getHeight();
-      const r = Math.min(pw / canvas.width, ph / canvas.height);
-      const w = canvas.width * r, h = canvas.height * r;
-      const x = (pw - w) / 2, y = (ph - h) / 2;
-      pdf.addImage(img, "PNG", x, y, w, h);
-      pdf.save("certificate.pdf");
-    });
+  const downloadPNG = async () => {
+    const canvas = await snapshot();
+    if (!canvas) return;
+    const a = document.createElement("a");
+    a.download = "certificate.png";
+    a.href = canvas.toDataURL("image/png");
+    a.click();
+  };
+
+  const downloadPDF = async () => {
+    const canvas = await snapshot();
+    if (!canvas) return;
+
+    const img = canvas.toDataURL("image/png");
+    const pdf = new jsPDF("landscape", "pt", "a4");
+    const pw = pdf.internal.pageSize.getWidth();
+    const ph = pdf.internal.pageSize.getHeight();
+    const r = Math.min(pw / canvas.width, ph / canvas.height);
+    const w = canvas.width * r;
+    const h = canvas.height * r;
+    const x = (pw - w) / 2;
+    const y = (ph - h) / 2;
+    pdf.addImage(img, "PNG", x, y, w, h);
+    pdf.save("certificate.pdf");
   };
 
   return (
@@ -133,18 +235,31 @@ export default function CongratsClient({
       />
 
       <div className="flex flex-wrap gap-3">
-        <button onClick={downloadPDF} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+        <button
+          onClick={downloadPDF}
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+        >
           Download PDF
         </button>
-        <button onClick={downloadPNG} className="px-4 py-2 bg-gray-800 text-white rounded hover:bg-black">
+        <button
+          onClick={downloadPNG}
+          className="px-4 py-2 bg-gray-800 text-white rounded hover:bg-black"
+        >
           Download PNG
         </button>
         {certificateUrl ? (
-          <a href={certificateUrl} className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700" download>
+          <a
+            href={certificateUrl}
+            className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700"
+            download
+          >
             Download (server)
           </a>
         ) : null}
-        <Link href={`/courses/${courseId}`} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+        <Link
+          href={`/courses/${courseId}`}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
           Back to Course
         </Link>
       </div>

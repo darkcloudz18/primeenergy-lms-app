@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import NextImage from "next/image"; // <-- rename to avoid new Image() conflict
 import { useRouter } from "next/navigation";
 import html2canvas from "html2canvas";
-import type { Options as H2COptions } from "html2canvas";
 import jsPDF from "jspdf";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -40,8 +40,6 @@ type ActiveTemplate = {
   font_size: number;
   font_color: string;
   is_active: boolean;
-  design_width?: number;   // ← optional
-  design_height?: number;  // ← optional
 };
 
 type CertificatePreviewProps = {
@@ -49,7 +47,8 @@ type CertificatePreviewProps = {
   learnerName: string;
   courseTitle: string;
   dateText: string;
-  containerRef: React.RefObject<HTMLDivElement>;
+  // nullable ref to match useRef<HTMLDivElement | null>(null)
+  containerRef?: React.RefObject<HTMLDivElement | null>;
 };
 
 export interface Props {
@@ -69,22 +68,9 @@ async function fetchDisplayNameFromApi(): Promise<string> {
   return j.displayName as string;
 }
 
-/* -------------------- certificate preview widget -------------------- */
+/* ---------------- constants & helpers for certificate ------------- */
 
-function useImageNaturalSize(src?: string) {
-  const [wh, setWh] = useState<{ w: number; h: number } | null>(null);
-  useEffect(() => {
-    if (!src) return;
-    const imgEl = new window.Image();
-    imgEl.crossOrigin = "anonymous";
-    imgEl.onload = () => setWh({
-      w: imgEl.naturalWidth || 1600,
-      h: imgEl.naturalHeight || 1066,
-    });
-    imgEl.src = src;
-  }, [src]);
-  return wh;
-}
+const BASE_H = 800; // design-time height that template coords were measured against
 
 function CertificatePreview({
   template,
@@ -101,85 +87,87 @@ function CertificatePreview({
     );
   }
 
-  // natural image size for outer frame/aspect
-  const wh = useImageNaturalSize(template.image_url);
-  const imgW = wh?.w ?? 1600;
-  const imgH = wh?.h ?? 1066;
-  const imgRatio = imgW / imgH;
+  // Local fallback if parent didn't pass a ref
+  const fallbackRef = useRef<HTMLDivElement | null>(null);
+  const hostRef = containerRef ?? fallbackRef;
 
-  // ✅ Use the same canvas the template was authored in.
-  // If you add design_width/height in DB, we’ll use them; otherwise fall back to natural size.
-  const designW = template.design_width ?? imgW;
-  const designH = template.design_height ?? imgH;
-
-  const leftPct = (x?: number) =>
-    (x !== undefined ? `${(x / designW) * 100}%` : "50%");
-  const topPct = (y: number) => `${(y / designH) * 100}%`;
+  // Scale helpers using actual rendered height
+  const px = (n: number) => {
+    const h = hostRef.current?.getBoundingClientRect().height ?? 0;
+    const scale = h / BASE_H;
+    return n * scale;
+  };
+  const topPct = (y: number) => `${(y / BASE_H) * 100}%`;
 
   return (
     <div
-      ref={containerRef}
-      style={{ aspectRatio: String(imgRatio) }}
-      className="relative w-full max-w-4xl mx-auto rounded-xl overflow-hidden border bg-white"
+      ref={hostRef}
+      className="relative w-full max-w-4xl mx-auto aspect-[3/2] rounded-xl overflow-hidden border bg-white"
     >
-      {/* plain <img> so html2canvas can capture it 1:1 */}
-      <img
+      {/* Use object-contain so the image never crops (overlay will match) */}
+      <NextImage
         src={template.image_url}
-        crossOrigin="anonymous"
         alt={template.name}
-        className="absolute inset-0 w-full h-full"
-        style={{ objectFit: "fill" }}
+        fill
+        className="object-contain bg-white"
+        priority
       />
 
-      {/* Name (centered) */}
+      {/* Name (centered horizontally) */}
       <div
         style={{
           position: "absolute",
-          left: leftPct(template.name_x),
+          left: "50%",
           top: topPct(template.name_y),
-          transform: "translate(-50%, -50%)", // vertical + horizontal center
-          width: "80%",
+          transform: "translate(-50%, -50%)",
+          width: "86%",
           color: template.font_color,
-          fontSize: `${template.font_size / 2}px`,
-          fontWeight: 700,
+          fontSize: `${px(template.font_size)}px`,
+          fontWeight: 800,
           textAlign: "center",
           lineHeight: 1.2,
           whiteSpace: "normal",
+          zIndex: 2,
+          textShadow: "0 1px 0 rgba(0,0,0,0.06)",
         }}
       >
         {learnerName}
       </div>
 
-      {/* Course (centered) */}
+      {/* Course (centered horizontally) */}
       <div
         style={{
           position: "absolute",
-          left: leftPct(template.course_x),
+          left: "50%",
           top: topPct(template.course_y),
           transform: "translate(-50%, -50%)",
-          width: "80%",
+          width: "90%",
           color: template.font_color,
-          fontSize: `${Math.max(template.font_size - 6, 24) / 2}px`,
-          fontWeight: 500,
+          fontSize: `${px(Math.max(template.font_size - 6, 24))}px`,
+          fontWeight: 700,
           textAlign: "center",
           lineHeight: 1.2,
           whiteSpace: "normal",
+          zIndex: 2,
+          textShadow: "0 1px 0 rgba(0,0,0,0.06)",
         }}
       >
         {courseTitle}
       </div>
 
-      {/* Date (centered) */}
+      {/* Date (centered horizontally) */}
       <div
         style={{
           position: "absolute",
-          left: leftPct(template.date_x),
+          left: "50%",
           top: topPct(template.date_y),
           transform: "translate(-50%, -50%)",
           color: template.font_color,
-          fontSize: `${20 / 2}px`,
+          fontSize: `${px(18)}px`,
           textAlign: "center",
           whiteSpace: "nowrap",
+          zIndex: 2,
+          textShadow: "0 1px 0 rgba(0,0,0,0.06)",
         }}
       >
         {dateText}
@@ -225,8 +213,8 @@ export default function FinalQuizClient({
   // localStorage key for this course
   const LS_KEY = `final_attempt:${courseId}`;
 
-  // Ref for screenshot/PDF (non-null assertion to satisfy RefObject<HTMLDivElement>)
-  const certRef = useRef<HTMLDivElement>(null!);
+  // Ref for screenshot/PDF
+  const certRef = useRef<HTMLDivElement | null>(null);
 
   /* -------------------- resolve display name once -------------------- */
 
@@ -264,7 +252,7 @@ export default function FinalQuizClient({
         setPassingScore(quizRow.passing_score ?? 0);
       }
 
-      // 2) template (optional)
+      // 2) active template
       const { data: activeTpl } = await supabase
         .from("certificate_templates")
         .select(
@@ -326,7 +314,7 @@ export default function FinalQuizClient({
                 passed: !!parsed.passed,
                 score: parsed.score ?? 0,
                 passing_score:
-                  parsed.passing_score ?? quizRow.passing_score ?? 0,
+                  parsed.passing_score ?? (quizRow.passing_score ?? 0),
               });
               hasAttempt = true;
             }
@@ -392,7 +380,6 @@ export default function FinalQuizClient({
 
   /* ------------------------------- submit ------------------------------- */
 
-  // ✅ Define canSubmit ONCE here (unconditional)
   const canSubmit = useMemo(() => {
     for (const q of questions) {
       if (q.question_type === "short_answer") continue;
@@ -443,12 +430,12 @@ export default function FinalQuizClient({
       const next = {
         passed: !!json.passed,
         score: json.score ?? 0,
-        passing_score: json.passing_score ?? passingScore,
+        passing_score:
+          json.passing_score ?? (passingScore ?? 0), // no ??/|| mixing
         certificate_url,
       };
       setResult(next);
 
-      // mirror status to localStorage (no name)
       try {
         localStorage.setItem(
           LS_KEY,
@@ -472,48 +459,54 @@ export default function FinalQuizClient({
 
   /* ------------------------------ downloads ------------------------------ */
 
-function downloadPNG() {
-  const el = certRef.current;
-  if (!el) return;
-  const opts: Partial<H2COptions> = {
-    backgroundColor: "#ffffff",
-    scale: 2,
-    useCORS: true,
-    allowTaint: false,
-    logging: false,
+  const downloadPNG = () => {
+    const el = certRef.current;
+    if (!el) return;
+    html2canvas(el, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      removeContainer: true,
+      windowWidth: el.scrollWidth,
+      windowHeight: el.scrollHeight,
+    }).then((canvas) => {
+      const link = document.createElement("a");
+      link.download = "certificate.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    });
   };
-  html2canvas(el, opts).then((canvas) => {
-    const link = document.createElement("a");
-    link.download = "certificate.png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-  });
-}
 
-function downloadPDF() {
-  const el = certRef.current;
-  if (!el) return;
-  const opts: Partial<H2COptions> = {
-    backgroundColor: "#ffffff",
-    scale: 2,
-    useCORS: true,
-    allowTaint: false,
-    logging: false,
+  const downloadPDF = () => {
+    const el = certRef.current;
+    if (!el) return;
+    html2canvas(el, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      removeContainer: true,
+      windowWidth: el.scrollWidth,
+      windowHeight: el.scrollHeight,
+    }).then((canvas) => {
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "pt",
+        format: "a4",
+      });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
+      const w = canvas.width * ratio;
+      const h = canvas.height * ratio;
+      const x = (pageW - w) / 2;
+      const y = (pageH - h) / 2;
+      pdf.addImage(imgData, "PNG", x, y, w, h);
+      pdf.save("certificate.pdf");
+    });
   };
-  html2canvas(el, opts).then((canvas) => {
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("landscape", "pt", "a4");
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
-    const w = canvas.width * ratio;
-    const h = canvas.height * ratio;
-    const x = (pageW - w) / 2;
-    const y = (pageH - h) / 2;
-    pdf.addImage(imgData, "PNG", x, y, w, h);
-    pdf.save("certificate.pdf");
-  });
-}
 
   /* --------------------------------- UI --------------------------------- */
 
@@ -587,7 +580,7 @@ function downloadPDF() {
           learnerName={displayName || "Learner"}
           courseTitle={ct}
           dateText={dateText}
-          containerRef={certRef}
+          containerRef={certRef} // nullable ref is OK now
         />
 
         <div className="flex gap-3">
